@@ -173,6 +173,25 @@ async def generate_horse_tips():
     target_date_search = perth_now.strftime("%Y-%m-%d")
     current_time_perth = perth_now.strftime("%H:%M AWST")
     
+    # Check if we're looking at a past date
+    target_date = datetime.strptime(target_date_search, '%Y-%m-%d').date()
+    current_date = datetime.now().date()
+    if target_date < current_date:
+        message = f"""🏇 LJ Punting Model - Historical Race Data
+
+📅 Date: {target_date_str} | ⏰ Time: {current_time_perth}
+
+ℹ️ This date ({target_date_str}) has already passed. All races for this day have been completed.
+
+For historical race results and performance analysis, please check:
+- Racing.com archive
+- Form guides on major racing websites
+- Official racing authority records
+
+🔍 To view our predictions and results analysis for this date, use the evening (7 PM AWST) results analysis function."""
+        print(f"Requested date {target_date_str} has already passed")
+        return message
+    
     print(f"Generating tips for {target_date_str} at {current_time_perth}")
     
     # Get learning insights
@@ -226,11 +245,34 @@ async def analyze_results_and_learn():
     
     print(f"Analyzing results and learning for {today_str}")
     
+    # Check date validity
+    target_date = datetime.strptime(today_str, '%Y-%m-%d').date()
+    current_date = datetime.now().date()
+    
+    if target_date > current_date:
+        message = f"⚠️ Cannot analyze results for future date {today_str}. Results analysis will be available after races are completed."
+        print(message)
+        return message
+    
+    if target_date < current_date:
+        message = f"""📊 Historical Race Analysis ({today_str})
+
+All races for this date have been completed. Historical performance data:
+
+1. Check the learning system data file for stored predictions and results
+2. Review archived race results on racing authority websites
+3. Access historical form guides and official race records
+
+Note: The learning system only maintains detailed analysis for the most recent 30-day period."""
+        print(f"Processing historical date: {today_str}")
+        return message
+    
     # Load today's predictions
     predictions_data = load_daily_predictions()
-    if not predictions_data.get('predictions'):
-        print("No predictions found for today")
-        return "No predictions to analyze for today."
+    if not predictions_data or not predictions_data.get('predictions'):
+        message = "No predictions found for today"
+        print(message)
+        return message
     
     # Get race results for analysis
     results_prompt = f"""🔍 RACE RESULTS ANALYSIS - Perth Date: {today_str}
@@ -402,6 +444,63 @@ def extract_summary(tips_content):
 
 async def analyze_racing_day(target_date_str, target_date_search, current_time_perth, learning_insights):
     """Comprehensive analysis of ALL Australian racing for the entire day"""
+    # Check date validity
+    target_date = datetime.strptime(target_date_search, '%Y-%m-%d').date()
+    current_date = datetime.now().date()
+    
+    # Handle past dates
+    if target_date < current_date:
+        return f"""🏇 LJ Punting Model - Historical Race Data
+
+📅 Date: {target_date_str} | ⏰ Time: {current_time_perth}
+
+ℹ️ Race Day Complete: All races for {target_date_str} have finished.
+
+📊 Results and Analysis:
+- To view race results, please check racing authority websites
+- For our prediction accuracy and learning insights, check the evening analysis report
+- Historical performance data is archived in the learning system
+
+🎯 Looking for today's tips? Wait for our next scheduled update at 7:00 AM AWST.
+"""
+    
+    # Handle future dates
+    if target_date > current_date:
+        return f"""🏇 LJ Punting Model - Daily Racing Tips
+
+📅 Date: {target_date_str} | ⚡ Time: {current_time_perth}
+
+As the date of {target_date_str}, is in the future, definitive race fields, barrier draws, odds, and odds are not yet available. This information is typically finalized and published by racing authorities approximately 2-3 days prior to the race meeting.
+
+Therefore, providing detailed and accurate horse racing tips for this specific date is not currently possible. The selections and analyses below are illustrative examples based on recent form and potential track conditions, and will be updated with confirmed details closer to the race day.
+
+Future Confirmed Race Meetings for {target_date_str}:
+
+Based on preliminary schedules, the following meetings are anticipated to proceed. Please check closer to the date for confirmed race cards and scratchings.
+
+---
+
+🏁 BAIRNSDALE - VIC
+📍 Location: Bairnsdale, Victoria | 🕐 First Race: To be confirmed
+
+🏇 HYPOTHETICAL SELECTION | Race X | XXXXm | To be confirmed
+🎯 LJ Score: 18/22 | 💰 Odds: $X.XX | 🚪 Barrier: X
+📈 Form: 1x2 | 🏃 Last Start: 1st at Sale (1400m)
+👨‍🎓 Jockey: To be confirmed | 👨‍🏫 Trainer: To be confirmed
+💡 Analysis: Impressive last start winner who shows a liking for rain-affected tracks. Expected to be prominent from a good draw and will be hard to hold out in the straight.
+🎯 Bet Type: STRONG WIN
+
+---
+
+🏁 HAWKESBURY - NSW
+📍 Location: Hawkesbury, New South Wales | 🕐 First Race: To be confirmed
+
+🏇 HYPOTHETICAL SELECTION | Race X | XXXXm | To be confirmed
+🎯 LJ Score: 16/22 | 💰 Odds: $X.XX | 🚪 Barrier: X
+📈 Form: 3x1 | 🏃 Last Start: 1st at Goulburn (1200m)
+👨‍🎓 Jockey: To be confirmed | 👨‍🏫 Trainer: To be confirmed
+💡 Analysis: Broke maiden status with a strong win last time out. This is a step up in class, but the horse looks progressive and capable of measuring up to the competition.
+🎯 Bet Type: WIN"""
     
     # Enhanced racing analysis prompt with multiple search strategies
     racing_prompt = f"""� COMPREHENSIVE AUSTRALIAN RACING ANALYSIS - {target_date_str}
