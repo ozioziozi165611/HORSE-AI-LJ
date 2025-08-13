@@ -14,18 +14,54 @@ from datetime import datetime, timedelta, time as dtime
 
 
 # API Configuration - Environment Variables for Railway Deployment
+def check_environment():
+    """Check and validate all required environment variables"""
+    missing_vars = []
+    
+    # Required environment variables
+    required_vars = {
+        'GEMINI_API_KEY': 'Google Gemini API key for AI analysis',
+        'DISCORD_WEBHOOK_URL': 'Discord webhook URL for sending messages',
+    }
+    
+    # Check each required variable
+    for var, description in required_vars.items():
+        if not os.environ.get(var):
+            missing_vars.append(f"{var} ({description})")
+    
+    # If any variables are missing, show a helpful error message
+    if missing_vars:
+        error_message = "\n".join([
+            "🚫 Missing Required Environment Variables",
+            "----------------------------------------",
+            "The following environment variables must be set in Railway:",
+            "",
+            *[f"• {var}" for var in missing_vars],
+            "",
+            "To fix this:",
+            "1. Go to your Railway dashboard",
+            "2. Select your project",
+            "3. Click on 'Variables'",
+            "4. Add the missing variables",
+            "",
+            "Required format:",
+            "GEMINI_API_KEY=your_gemini_api_key",
+            "DISCORD_WEBHOOK_URL=your_discord_webhook_url",
+            "RACING_DATA_DIR=/app/data",
+            "RUN_MODE=schedule"
+        ])
+        raise ValueError(error_message)
+
+# Check environment variables
+check_environment()
+
+# Get configuration from environment
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL')
 
-# Validate required environment variables
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY environment variable is required")
-if not WEBHOOK_URL:
-    raise ValueError("DISCORD_WEBHOOK_URL environment variable is required")
-
 # Validate webhook URL format
 if not WEBHOOK_URL.startswith("https://discordapp.com/api/webhooks/"):
-    raise ValueError("Invalid Discord webhook URL format")
+    raise ValueError("Invalid Discord webhook URL format - Must start with 'https://discordapp.com/api/webhooks/'")
 
 # Data directory - Use environment variable with fallback for development
 DATA_DIR = os.environ.get('RACING_DATA_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data'))
