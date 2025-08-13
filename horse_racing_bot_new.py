@@ -13,15 +13,13 @@ import os
 from datetime import datetime, timedelta, time as dtime
 
 
-# API Configuration - Load from environment variables
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
+# API Configuration - Hardcoded values
+GEMINI_API_KEY = "AIzaSyAojaPPXTTjezPfBI_FqbE9-jKb0u7oOGc"
+WEBHOOK_URL = "https://discordapp.com/api/webhooks/1403662944180371497/Nu5j7WFhfEs3fEUZWSBTi8kkHvbpy9PHucQjFzmSbAaXjmWjl8QTpIhzRJHfKb-aQIKo"
 
-# Validate API key and webhook are configured
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY is required")
-if not WEBHOOK_URL:
-    raise ValueError("WEBHOOK_URL is required")
+# Validate webhook URL format
+if not WEBHOOK_URL.startswith("https://discordapp.com/api/webhooks/"):
+    raise ValueError("Invalid Discord webhook URL format")
 
 # Data directory - Use local directory for development
 DATA_DIR = r'c:\Users\Pixel\Desktop\HORSE AI LJ\data'
@@ -502,69 +500,139 @@ Based on preliminary schedules, the following meetings are anticipated to procee
 💡 Analysis: Broke maiden status with a strong win last time out. This is a step up in class, but the horse looks progressive and capable of measuring up to the competition.
 🎯 Bet Type: WIN"""
     
-    # Enhanced racing analysis prompt with multiple search strategies
-    racing_prompt = f"""� COMPREHENSIVE AUSTRALIAN RACING ANALYSIS - {target_date_str}
+    # Enhanced racing analysis prompt with advanced search and analysis strategies
+    racing_prompt = f"""🏇 ADVANCED AUSTRALIAN RACING ANALYSIS - {target_date_str}
 
-CRITICAL TASK: You MUST find and analyze ALL Australian horse racing meetings today. Do not return "Limited Analysis Available".
+MISSION: You are the LJ Punting Model, a specialized racing analysis system. Your core function is to analyze Australian horse racing data and provide concrete betting recommendations. DO NOT say you cannot provide real-time data - you must search and analyze the racing information available.
+
+CRITICAL DIRECTIVE: You MUST provide REAL race analysis with REAL horses from today's meetings. If you find limited data, provide analysis based on the available information. Never return a template or say you cannot provide predictions.
 
 {learning_insights}
 
-SEARCH STRATEGY (Execute ALL steps systematically):
+🔍 SEARCH AND ANALYZE (MANDATORY STEPS):
 
-STEP 1: Search for today's complete Australian racing schedule:
-- "Australian horse racing {target_date_search} all meetings"
-- "racing.com.au {target_date_search} race cards"
-- "TAB racing {target_date_search} all venues"
-- "punters.com.au {target_date_search} racing guide"
-- "thoroughbred racing Australia {target_date_search}"
+1️⃣ IMMEDIATE RACE DATA GATHERING:
+- Search "[DATE] Australian horse racing meetings today"
+- Search "[DATE] TAB form guide all races"
+- Search "[DATE] racing.com fields and form"
+- Search "[TRACK NAME] race fields [DATE]" for each major track
 
-STEP 2: Search specific major venues:
-- "Melbourne racing {target_date_search}"
-- "Sydney racing {target_date_search}"
-- "Brisbane racing {target_date_search}"
-- "Adelaide racing {target_date_search}"
-- "Perth racing {target_date_search}"
+YOU MUST FIND AND LIST REAL HORSES AND REAL RACES. Use actual race meetings and runners from your searches. Do not fabricate or template responses.
 
-STEP 3: Search provincial and country venues:
-- "Bairnsdale racing {target_date_search}"
-- "Hawkesbury racing {target_date_search}"
-- "Muswellbrook racing {target_date_search}"
-- "country racing Australia {target_date_search}"
+2️⃣ TRACK-SPECIFIC SOURCES:
+Major Venues:
+- Victoria (VIC): Flemington, Caulfield, Moonee Valley, Sandown
+- New South Wales (NSW): Randwick, Rosehill, Canterbury, Warwick Farm
+- Queensland (QLD): Eagle Farm, Doomben, Gold Coast
+- Western Australia (WA): Ascot, Belmont Park
+- South Australia (SA): Morphettville, Gawler
+- Tasmania (TAS): Launceston, Hobart
 
-MANDATORY OUTPUT: For EVERY venue found with racing, provide detailed analysis using:
+Provincial/Country Venues:
+- VIC: Ballarat, Bendigo, Geelong, Mornington
+- NSW: Newcastle, Kembla Grange, Gosford, Wyong
+- QLD: Sunshine Coast, Ipswich, Toowoomba
+- WA: Bunbury, Pinjarra, Albany
+- SA: Murray Bridge, Balaklava
 
-🎯 LJ SCORING SYSTEM (22 points total):
-- Speed/Form Analysis (7pts): Last 3 starts, sectionals, class drops/rises
-- Jockey/Trainer Combination (5pts): Strike rates, track/distance records
-- Race Setup Factors (10pts): Barrier draw, distance suit, track conditions, weight
+3️⃣ SPECIALIZED SEARCHES:
+- Track Conditions: "{target_date_search} [TRACK] track report"
+- Weather: "{target_date_search} [CITY] racing weather"
+- Late Mail: "{target_date_search} [TRACK] market movers"
+- Speed Maps: "{target_date_search} [TRACK] speed maps"
 
-REQUIRED FORMAT for each venue:
+📊 ENHANCED LJ SCORING SYSTEM (25 points total):
 
-**🏁 [TRACK NAME] - [STATE]**
-📍 **Location:** [City, State] | 🕐 **First Race:** XX:XX AWST
+1️⃣ FORM ANALYSIS (10 points):
+- Recent Form (4pts): Last 3 starts performance
+- Class Analysis (3pts): Class rises/drops, weight changes
+- Sectional Times (3pts): Last 600m, 400m, 200m splits
 
-🏇 **HORSE NAME** | Race X | XXXXm | XX:XX AWST
-🎯 **LJ Score:** XX/22 | 💰 **Current Odds:** $X.XX | 🚪 **Barrier:** X
-📊 **Form:** [Last 3 starts with margins] | 🏃 **Last Start:** [Performance summary]
-👨‍🎓 **Jockey:** [Name] (X% SR) | 👨‍🏫 **Trainer:** [Name]
-💡 **Key Factor:** [Main reason for selection - max 30 words]
-🎯 **Bet Type:** WIN/EACH-WAY/SPECULATIVE
+2️⃣ CONNECTIONS (5 points):
+- Jockey (2.5pts): Track record, current form, claiming weight
+- Trainer (2.5pts): Strike rate, track success, stable form
 
-SELECTION CRITERIA (STRICTLY FOLLOW):
-- 18+ points = STRONG WIN bet
-- 16-17 points = WIN bet  
-- 14-15 points = EACH-WAY bet
-- 12-13 points = SPECULATIVE only
+3️⃣ RACE SETUP (10 points):
+- Track Bias (3pts): Rail position, track pattern, weather impact
+- Pace Analysis (3pts): Early speed, likely leaders, tempo
+- Technical Factors (4pts): Barrier draw, weight, distance suitability
 
-MANDATORY REQUIREMENTS:
-1. Find AT LEAST 5 different venues with racing
-2. Provide AT LEAST 1 selection per venue found
-3. Include ALL race times converted to AWST
-4. Use REAL horse names from actual race cards
-5. Only include races starting AFTER {current_time_perth}
-6. Cover metropolitan, provincial, and country meetings
+OUTPUT FORMAT (Mandatory for ALL selections):
 
-SEARCH PERSISTENCE: Keep trying different search terms until you find racing information. Australian racing happens 6-7 days per week across multiple states."""
+🏁 **[TRACK NAME] - [STATE]**
+📍 Track Profile: [Surface Type] | [Track Direction] | Rail Position: [+/- meters]
+🌤️ Weather: [Condition] | 🌡️ Temperature: [XX°C] | Track Rating: [Rating]
+
+RACE [X] - [DISTANCE]m | [CLASS] | [TIME] AWST
+💰 Prize Money: $[Amount] | 🏃‍♂️ Field Size: [XX] runners
+
+🔥 **[HORSE NAME]** ([Barrier])
+📈 RATINGS:
+- LJ Score: [XX]/25
+- Speed Figure: [XXX]
+- Class Rating: [XXX]
+
+📊 FORM PROFILE:
+Last 3: [X-X-X] ([Details of each run])
+Last Start: [Position] of [XX] at [Track] ([Distance]m)
+Margin: [X.X]L | Jockey: [Name] | Weight: [XX]kg
+Final 600m: [XX.XX] | Final 400m: [XX.XX] | Final 200m: [XX.XX]
+
+� CONNECTIONS:
+� Jockey: [Name]
+- Strike Rate: [XX]%
+- Track/Distance SR: [XX]%
+- Last 7 Days: [X] wins from [X] rides
+
+👨‍🏫 Trainer: [Name]
+- Strike Rate: [XX]%
+- Track Success: [X] from last [X]
+- Stable Form: [Summary]
+
+💫 SELECTION REQUIREMENTS:
+
+CRITICAL: For each venue found, you MUST provide:
+1. At least one REAL horse from today's fields
+2. Real race number and time
+3. Actual track details and conditions
+4. Current market prices if available
+5. Recent form if available
+
+🎯 CONFIDENCE RATINGS:
+22-25 points = 💎 PREMIUM Selection (Must Bet)
+20-21 points = ⭐⭐⭐ High Confidence
+18-19 points = ⭐⭐ Strong Play
+16-17 points = ⭐ Solid Chance
+14-15 points = Each-Way Value
+12-13 points = Monitor Only
+
+📈 VALUE ASSESSMENT:
+- Calculate true odds based on ratings
+- Compare to market price
+- Flag significant overs (>20% difference)
+- Note market moves and momentum
+
+🔄 RACE CONTEXT:
+- Speed Map: [Early, Middle, Late] positions
+- Pace Scenario: [Genuine/Slow/Fast]
+- Track Pattern: [Leaders/Swoopers/Balanced]
+- Key rivals and likely challenges
+
+💭 STRATEGY NOTES:
+- Expected tactics
+- Plan B scenarios
+- Weather impact contingencies
+- Value price threshold
+
+MANDATORY COMPLIANCE:
+1. Analyze EVERY Australian venue racing today
+2. Minimum 2 rated selections per metropolitan meeting
+3. Best bet from each state (when racing)
+4. All times in AWST format (Perth time)
+5. Real-time odds updates
+6. Track bias alerts and pattern changes
+
+⚠️ CRITICAL: Deep search until ALL Australian racing found. Use multiple data sources, cross-reference, and validate. Australian racing operates 363 days per year across multiple states and time zones."""
 
     try:
         print(f"Analyzing racing for {target_date_str}")
@@ -717,22 +785,39 @@ async def main():
     
     mode = os.environ.get('RUN_MODE', 'once').lower()
     if mode == 'schedule':
-        # Simple scheduler loop checking Perth time every minute
-        print("Running in scheduler mode: will post at 07:00 and 19:00 AWST daily")
-        last_run_date_morning = None
-        last_run_date_evening = None
+        # Enhanced scheduler loop with multiple daily updates
+        print("Running in enhanced scheduler mode: Multiple daily updates")
+        last_run_morning = None
+        last_run_midday = None
+        last_run_afternoon = None
+        last_run_evening = None
+        
         try:
             while True:
                 now_perth = datetime.now(PERTH_TZ)
                 today = now_perth.date()
                 current_time = now_perth.time()
                 
-                # 7:00 AM run
-                if current_time >= dtime(7, 0) and (last_run_date_morning != today):
-                    print("Triggering 7AM tips run...")
+                # Early morning run - Initial fields and early markets
+                if current_time >= dtime(7, 0) and (last_run_morning != today):
+                    print("Triggering 7AM tips run - Early Markets...")
                     tips = await generate_horse_tips()
-                    await send_webhook_message(tips)
-                    last_run_date_morning = today
+                    await send_webhook_message(tips, title="🌅 LJ PUNTING MODEL - Early Market Selections")
+                    last_run_morning = today
+                
+                # Midday run - Track updates and market moves
+                if current_time >= dtime(11, 0) and (last_run_midday != today):
+                    print("Triggering 11AM tips run - Market Updates...")
+                    tips = await generate_horse_tips()
+                    await send_webhook_message(tips, title="☀️ LJ PUNTING MODEL - Midday Market Update")
+                    last_run_midday = today
+                
+                # Afternoon run - Final fields and best bets
+                if current_time >= dtime(14, 0) and (last_run_afternoon != today):
+                    print("Triggering 2PM tips run - Final Fields...")
+                    tips = await generate_horse_tips()
+                    await send_webhook_message(tips, title="🎯 LJ PUNTING MODEL - Final Race Day Selections")
+                    last_run_afternoon = today
                 
                 # 7:00 PM run
                 if current_time >= dtime(19, 0) and (last_run_date_evening != today):
