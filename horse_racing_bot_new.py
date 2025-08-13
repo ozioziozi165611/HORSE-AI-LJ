@@ -13,16 +13,22 @@ import os
 from datetime import datetime, timedelta, time as dtime
 
 
-# API Configuration - Hardcoded values
-GEMINI_API_KEY = "AIzaSyAojaPPXTTjezPfBI_FqbE9-jKb0u7oOGc"
-WEBHOOK_URL = "https://discordapp.com/api/webhooks/1403662944180371497/Nu5j7WFhfEs3fEUZWSBTi8kkHvbpy9PHucQjFzmSbAaXjmWjl8QTpIhzRJHfKb-aQIKo"
+# API Configuration - Environment Variables for Railway Deployment
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL')
+
+# Validate required environment variables
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable is required")
+if not WEBHOOK_URL:
+    raise ValueError("DISCORD_WEBHOOK_URL environment variable is required")
 
 # Validate webhook URL format
 if not WEBHOOK_URL.startswith("https://discordapp.com/api/webhooks/"):
     raise ValueError("Invalid Discord webhook URL format")
 
-# Data directory - Use local directory for development
-DATA_DIR = r'c:\Users\Pixel\Desktop\HORSE AI LJ\data'
+# Data directory - Use environment variable with fallback for development
+DATA_DIR = os.environ.get('RACING_DATA_DIR', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data'))
 
 # Learning system files (within DATA_DIR)
 LEARNING_DATA_FILE = os.path.join(DATA_DIR, 'racing_learning_data.json')
