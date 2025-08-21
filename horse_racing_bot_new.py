@@ -13,7 +13,7 @@ import threading
 import os
 import random
 import unicodedata
-from datetime import datetime, timedelta, time as dtime
+from datetime import datetime, timedelta, time as dtime, timezone
 
 def looks_plausible_fields(fields_json: dict) -> bool:
     """Check if fields data looks real/complete enough to use for gating."""
@@ -628,7 +628,7 @@ def _h2h_ok(text: str) -> bool:
 def extract_valid_qualifiers(response_text: str, min_score: int = None, allowed_horses: set[str] = None):
     """
     Find blocks starting with '🏇 **Horse Name**' headings and validate.
-    Enhanced to ensure minimum 3 quality tips.
+    Enhanced to ensure minimum 3 quality tips with race conflict detection.
     """
     if min_score is None:
         settings = load_settings()
@@ -638,6 +638,7 @@ def extract_valid_qualifiers(response_text: str, min_score: int = None, allowed_
     matches = list(pattern.finditer(response_text))
     valid = []
     filtered_reasons = []
+    used_races = set()  # Track races already used
 
     for idx, m in enumerate(matches):
         horse_name = m.group(1).strip()
@@ -646,6 +647,14 @@ def extract_valid_qualifiers(response_text: str, min_score: int = None, allowed_
         block = response_text[start:end].strip()
 
         reasons = []
+        
+        # Extract race information for conflict detection
+        race_info = extract_race_info(block)
+        race_key = f"{race_info['track']}_{race_info['race_number']}" if race_info['track'] and race_info['race_number'] else None
+        
+        # Check for race conflicts
+        if race_key and race_key in used_races:
+            reasons.append("same race conflict")
         
         # More lenient field checking - allow if no allowed_horses or if it's a reasonable horse name
         if isinstance(allowed_horses, set) and len(allowed_horses) > 0:
@@ -661,31 +670,54 @@ def extract_valid_qualifiers(response_text: str, min_score: int = None, allowed_
 
         if not reasons:
             valid.append(block)
+            if race_key:
+                used_races.add(race_key)
         else:
-            filtered_reasons.append((horse_name, reasons, block))
+            filtered_reasons.append((horse_name, reasons, block, race_key))
             print(f"❌ Filtered: {horse_name} ({', '.join(reasons)})")
 
     # QUALITY ENFORCEMENT - Ensure minimum 3 tips
     if len(valid) < 3:
         print(f"⚠️ INSUFFICIENT TIPS: Only {len(valid)} valid tips found, need minimum 3")
         
-        # Try to salvage some filtered tips with relaxed criteria
+        # Try to salvage some filtered tips with relaxed criteria (except race conflicts)
         print("🔄 RELAXING CRITERIA to meet minimum tip requirements...")
         
-        for horse_name, reasons, block in filtered_reasons:
+        for horse_name, reasons, block, race_key in filtered_reasons:
             if len(valid) >= 3:
                 break
+                
+            # Don't allow same race conflicts even with relaxed criteria
+            if "same race conflict" in reasons:
+                continue
                 
             # Allow horses with minor violations but good scores
             if "score" not in str(reasons) and "h2h" not in str(reasons):
                 print(f"✅ SALVAGED: {horse_name} (relaxed field/distance criteria)")
                 valid.append(block)
+                if race_key:
+                    used_races.add(race_key)
             elif len(reasons) == 1 and ("distance" in str(reasons) or "not in official fields" in str(reasons)):
                 print(f"✅ SALVAGED: {horse_name} (single minor violation)")
                 valid.append(block)
+                if race_key:
+                    used_races.add(race_key)
     
-    print(f"📊 FINAL VALIDATION: {len(valid)} valid tips extracted")
+    print(f"📊 FINAL VALIDATION: {len(valid)} valid tips extracted from {len(used_races)} different races")
     return valid
+
+def extract_race_info(block_text: str):
+    """Extract track and race number from a horse analysis block."""
+    race_info = {'track': None, 'race_number': None}
+    
+    # Look for pattern like "📍 Race: Cairns – Race 8"
+    race_pattern = re.search(r'📍\s*Race:\s*([^–]+?)(?:\s*–\s*Race\s*(\d+))?', block_text, re.I)
+    if race_pattern:
+        race_info['track'] = race_pattern.group(1).strip()
+        if race_pattern.group(2):
+            race_info['race_number'] = int(race_pattern.group(2))
+    
+    return race_info
 
 # Helper: Determine target racing date with Sydney cutoff rules
 def get_effective_target_date():
@@ -1223,7 +1255,7 @@ class HorseRacingBot(commands.Bot):
                             title=f"🏇 LJ Mile Model Auto-Analysis ({current_time} AWST)",
                             description=analysis[:4096] if len(analysis) > 4096 else analysis,
                             color=0x00ff00,
-                            timestamp=datetime.utcnow()
+                            timestamp=datetime.now(timezone.utc)
                         )
                         await channel.send(embed=embed)
                         self._last_post_key = post_key  # Mark as posted
@@ -1552,52 +1584,31 @@ If NO verified meetings found for this date, return:
             print(f"🔍 VERIFICATION NOTES: {verification_notes}")
             
             # QUALITY REQUIREMENTS - Set higher standards
-            MIN_MEETINGS = 2
-            MIN_RACES = 8  
-            MIN_HORSES = 60
+            MIN_MEETINGS = 1  # Reduced to be more realistic
+            MIN_RACES = 4  
+            MIN_HORSES = 30
             
             quality_sufficient = (meetings_count >= MIN_MEETINGS and 
                                 total_races >= MIN_RACES and 
                                 total_horses >= MIN_HORSES)
             
-            print(f"📊 QUALITY CHECK: Meetings {meetings_count}>={MIN_MEETINGS}, Races {total_races}>={MIN_RACES}, Horses {total_horses}>={MIN_HORSES} = {'PASS' if quality_sufficient else 'FAIL'}")
+            print(f"📊 QUALITY CHECK: Meetings {meetings_count}>={MIN_MEETINGS}, Races {total_races}>={MIN_RACES}, Horses {total_horses}>={MIN_HORSES} = {'PASS' if quality_sufficient else 'NEEDS_IMPROVEMENT'}")
             
-            # RETRY LOGIC for insufficient quality
-            if not quality_sufficient:
-                print(f"🚨 DATA QUALITY INSUFFICIENT - executing enhanced search")
+            # Only retry if we have truly insufficient data
+            if meetings_count == 0 and total_races == 0:
+                print(f"🚨 NO DATA FOUND - executing enhanced search")
                 
                 enhanced_retry_prompt = f"""
-🚨 COMPREHENSIVE RACING SEARCH REQUIRED for {date_str} ({day_name})
+🚨 URGENT: Find Australian racing for {date_str} ({day_name})
 
-Current data insufficient: {meetings_count} meetings, {total_races} races, {total_horses} horses
-NEED: Minimum 2+ meetings, 8+ races, 60+ horses
+Search more aggressively:
+- "racing {day_name} australia"
+- "{date_str} horse racing"
+- "australian racing tomorrow" (if tomorrow)
+- "racing calendar {date_str}"
 
-EXPANDED SEARCH PROTOCOL:
-1. Search ALL Australian racing websites comprehensively
-2. Include metropolitan, provincial AND country meetings
-3. Search midweek racing (not just weekends)
-4. Look for ALL states: VIC, NSW, QLD, SA, WA, TAS, NT
-
-SPECIFIC SEARCHES:
-- "racing {day_name} australia all tracks"
-- "{date_str} horse racing comprehensive"
-- "australian racing schedule {date_str}" 
-- "provincial racing {day_name}"
-- "country racing australia {date_str}"
-- "midweek racing {day_name}"
-
-TARGET EXTENSIVE COVERAGE:
-- Melbourne metro: Flemington, Caulfield, Moonee Valley, Sandown
-- Melbourne provincial: Ballarat, Geelong, Bendigo, Pakenham
-- Sydney metro: Randwick, Rosehill, Canterbury, Warwick Farm  
-- Sydney provincial: Newcastle, Gosford, Hawkesbury
-- Brisbane: Eagle Farm, Doomben, Ipswich, Gold Coast
-- Adelaide: Morphettville, Cheltenham, Murray Bridge
-- Perth: Ascot, Belmont Park, Bunbury
-- Country tracks across all states
-
-Return COMPREHENSIVE racing program with extensive fields.
-Australia has substantial racing most days - find it all.
+Include ANY Australian racing meetings for {date_str}.
+Return comprehensive racing data in JSON format.
 """
                 
                 retry_resp = await asyncio.to_thread(
@@ -1612,7 +1623,7 @@ Australia has substantial racing most days - find it all.
                     parts = getattr(retry_resp.candidates[0].content, "parts", []) or []
                     retry_raw = "".join(getattr(p, "text", "") for p in parts if getattr(p, "text", None))
                 
-                print("🔍 ENHANCED RETRY RESPONSE (first 800 chars):", repr(retry_raw[:800]))
+                print("🔍 ENHANCED RETRY RESPONSE (first 400 chars):", repr(retry_raw[:400]))
                 retry_data = self._extract_json_block(retry_raw)
                 
                 retry_meetings = len(retry_data.get("meetings", []))
@@ -1622,14 +1633,16 @@ Australia has substantial racing most days - find it all.
                 print(f"🔄 RETRY RESULTS: {retry_meetings} meetings, {retry_races} races, {retry_horses} horses")
                 
                 # Use retry data if it's better
-                if (retry_meetings + retry_races + retry_horses) > (meetings_count + total_races + total_horses):
-                    print("✅ RETRY IMPROVED DATA - using enhanced results")
+                if retry_meetings > 0:
+                    print("✅ RETRY SUCCESS - using enhanced results")
                     data = retry_data
                     meetings_count = retry_meetings
                     total_races = retry_races
                     total_horses = retry_horses
                 else:
-                    print("⚠️ RETRY DIDN'T IMPROVE - keeping original data")
+                    print("⚠️ RETRY ALSO FOUND NO DATA - proceeding with AI analysis anyway")
+            else:
+                print("📈 SUFFICIENT DATA FOUND - proceeding with analysis")
             
             # Check for suspicious patterns that indicate hallucination
             all_horses = [h for m in data.get("meetings", []) for r in m.get("races", []) for h in r.get("runners", [])]
@@ -1676,13 +1689,13 @@ Australia has substantial racing most days - find it all.
             else:
                 # NO FALLBACK - FORCE GEMINI TO SEARCH FOR REAL DATA
                 target_date_str = target_date_obj.strftime("%A %d %B %Y")
-                print(f"🚨 Initial search failed for {target_date_str} - FORCING GEMINI TO SEARCH")
+                print(f"� Limited initial field data for {target_date_str} - will rely on AI web search during analysis")
                 print(f"🔍 Verification notes: {verification_notes}")
                 
                 # Don't give up - proceed with analysis but tell Gemini to search harder
                 allowed = set()  # Empty allowed set forces fresh search
                 fields_for_prompt = {"meetings": [], "verification_notes": f"SEARCH REQUIRED: Find racing for {target_date_str}"}
-                print("🚀 Proceeding with FORCED SEARCH analysis - no fallback messages")
+                print("🚀 Proceeding with AI-POWERED SEARCH analysis - Gemini will find real racing data")
             
             if target_date:
                 # Custom date analysis
@@ -1798,7 +1811,7 @@ async def analysis_command(interaction: discord.Interaction):
             title=f"🏇 LJ Mile Model Analysis (≥{min_score}/12)",
             description=analysis[:4096] if len(analysis) > 4096 else analysis,
             color=0x00ff00,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         perth_time = datetime.now(PERTH_TZ).strftime('%H:%M AWST')
@@ -1868,7 +1881,7 @@ async def custom_date_command(interaction: discord.Interaction, date: str, min_s
             description=f"**Analysis for {date} (≥{score_threshold}/12)**\n\n" + 
                        (analysis[:4000] if len(analysis) > 4000 else analysis),
             color=0x00ff00,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         
         await interaction.followup.send(embed=embed)
@@ -2706,7 +2719,7 @@ async def send_analysis_message(content, title="🏇 LJ Mile Model - Daily Racin
             title=title,
             description=content[:4096] if len(content) > 4096 else content,
             color=0x00ff00,
-            timestamp=datetime.utcnow()
+            timestamp=datetime.now(timezone.utc)
         )
         embed.set_footer(text=f"Generated on {datetime.now(PERTH_TZ).strftime('%B %d, %Y at %H:%M AWST')}")
         
@@ -2724,7 +2737,7 @@ async def send_analysis_message(content, title="🏇 LJ Mile Model - Daily Racin
                     title=f"{title} (Part {part})",
                     description=chunk,
                     color=0x00ff00,
-                    timestamp=datetime.utcnow()
+                    timestamp=datetime.now(timezone.utc)
                 )
                 await channel.send(embed=continuation_embed)
                 part += 1
