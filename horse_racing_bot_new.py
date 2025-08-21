@@ -628,10 +628,124 @@ def _h2h_ok(text: str) -> bool:
             pass
     return False
 
+def detect_fictional_content(response_text: str) -> list[str]:
+    """
+    Detect fictional horse names and tracks in the response.
+    Returns list of issues found.
+    """
+    issues = []
+    
+    # Known fictional horse names from recent outputs
+    fictional_horses = [
+        "SUPERHEART", "CASINO SEVENTEEN", "GOLDEN SANDS", "IRON WILL", "JUST MAGICAL", 
+        "AMAZING GRACE", "BOLD VENTURE", "COSMIC FORCE", "DANCING QUEEN", "ELECTRIC STORM",
+        "SUPER EXTREME", "SMART IMAGE", "FASTOBULLET"
+    ]
+    
+    # Known fictional track names
+    fictional_tracks = [
+        "CANBERRA (ACTON)", "CANBERRA ACTON", "ACTON", "SYNTHETIC VALLEY", 
+        "RACEWAY PARK", "METROPOLITAN DOWNS", "HERITAGE PARK", "RACING CENTRAL", 
+        "TURF VALLEY"
+    ]
+    
+    # Check for fictional horses
+    for horse in fictional_horses:
+        if horse in response_text.upper():
+            issues.append(f"Fictional horse detected: {horse}")
+    
+    # Check for fictional tracks
+    for track in fictional_tracks:
+        if track in response_text.upper():
+            issues.append(f"Fictional track detected: {track}")
+    
+    # Check for obvious hallucination patterns
+    hallucination_patterns = [
+        r"synthetic\s+surface",  # Suspicious synthetic track references
+        r"acton.*race",         # References to Acton racing
+        r"heritage.*park",      # Generic track names
+        r"turf.*valley"         # Generic track names
+    ]
+    
+    for pattern in hallucination_patterns:
+        if re.search(pattern, response_text, re.IGNORECASE):
+            issues.append(f"Suspicious pattern: {pattern}")
+    
+    return issues
+
+def is_real_australian_track(track_name: str) -> bool:
+    """Validate if track name is a real Australian racecourse."""
+    if not track_name:
+        return False
+    
+    # Comprehensive list of real Australian racetracks
+    real_tracks = {
+        # NSW
+        'randwick', 'rosehill', 'canterbury', 'kensington', 'hawkesbury', 'newcastle', 'gosford', 'wyong',
+        'muswellbrook', 'scone', 'wagga', 'albury', 'bathurst', 'dubbo', 'orange', 'tamworth', 'lismore',
+        'grafton', 'ballina', 'port macquarie', 'taree', 'goulburn', 'young', 'cowra', 'forbes',
+        
+        # VIC  
+        'flemington', 'caulfield', 'moonee valley', 'sandown', 'geelong', 'ballarat', 'bendigo', 
+        'mornington', 'cranbourne', 'sale', 'wangaratta', 'hamilton', 'warrnambool', 'pakenham',
+        'swan hill', 'echuca', 'mildura', 'horsham', 'ararat', 'stawell', 'donald', 'bairnsdale',
+        
+        # QLD
+        'eagle farm', 'doomben', 'gold coast', 'sunshine coast', 'toowoomba', 'rockhampton', 
+        'mackay', 'townsville', 'cairns', 'ipswich', 'bundaberg', 'charleville', 'roma',
+        'gatton', 'beaudesert', 'cloncurry', 'mount isa', 'longreach', 'emerald',
+        
+        # SA
+        'morphettville', 'murray bridge', 'gawler', 'port lincoln', 'mount gambier', 'naracoorte',
+        'strathalbyn', 'oakbank', 'port augusta', 'whyalla', 'bordertown',
+        
+        # WA
+        'ascot', 'belmont park', 'bunbury', 'albany', 'geraldton', 'kalgoorlie', 'northam',
+        'pinjarra', 'york', 'narrogin', 'perth', 'broome', 'carnarvon',
+        
+        # TAS
+        'elwick', 'mowbray', 'devonport', 'spreyton', 'launceston', 'hobart',
+        
+        # NT
+        'fannie bay', 'darwin',
+        
+        # ACT
+        'thoroughbred park'  # Note: No 'Canberra (Acton)' - that's fictional
+    }
+    
+    # Normalize track name for comparison
+    normalized = track_name.lower().strip()
+    
+    # Remove common variations
+    normalized = normalized.replace('racecourse', '').replace('racing club', '').strip()
+    normalized = normalized.replace('(', '').replace(')', '').strip()
+    
+    # Check direct match
+    if normalized in real_tracks:
+        return True
+    
+    # Check partial matches for compound names
+    for real_track in real_tracks:
+        if real_track in normalized or normalized in real_track:
+            return True
+    
+    # Flag fictional tracks we've seen before
+    fictional_tracks = {
+        'canberra acton', 'canberra (acton)', 'acton', 'synthetic valley', 'raceway park',
+        'metropolitan downs', 'heritage park', 'racing central', 'turf valley'
+    }
+    
+    if normalized in fictional_tracks:
+        print(f"🚨 FICTIONAL TRACK DETECTED: {track_name}")
+        return False
+    
+    print(f"⚠️ UNKNOWN TRACK: {track_name} - not in verified Australian track list")
+    return False
+
 def extract_valid_qualifiers(response_text: str, min_score: int = None, allowed_horses: set[str] = None):
     """
     Find blocks starting with '🏇 **Horse Name**' headings and validate.
-    Enhanced to ensure minimum 3 quality tips with race conflict detection.
+    Enhanced to ensure minimum 3 quality tips with race conflict detection and real track validation.
     """
     if min_score is None:
         settings = load_settings()
@@ -654,6 +768,11 @@ def extract_valid_qualifiers(response_text: str, min_score: int = None, allowed_
         # Extract race information for conflict detection
         race_info = extract_race_info(block)
         race_key = None
+        
+        # CRITICAL: Validate track is real Australian racecourse
+        if race_info['track'] and not is_real_australian_track(race_info['track']):
+            reasons.append("fictional track")
+            print(f"🚨 FICTIONAL TRACK: {horse_name} blocked - {race_info['track']} is not a real Australian racecourse")
         
         # Create race key for conflict detection
         if race_info['track'] and race_info['race_number']:
@@ -959,7 +1078,16 @@ async def call_gemini_with_retry(prompt=None, min_score=None, max_retries=3, bas
                                 final_answer += part.text
             
             if final_answer and len(final_answer.strip()) > 100:
-                print("✅ Raw response received, applying LJ Mile validation...")
+                print("✅ Raw response received, applying anti-hallucination checks...")
+                
+                # Check for fictional content first
+                fictional_issues = detect_fictional_content(final_answer)
+                if fictional_issues:
+                    print(f"🚨 FICTIONAL CONTENT DETECTED: {fictional_issues}")
+                    print("❌ Response rejected due to hallucinated content")
+                    continue  # Skip this attempt and retry
+                
+                print("✅ Anti-hallucination check passed, applying LJ Mile validation...")
                 
                 # Extract and validate qualifiers
                 valid_qualifiers = extract_valid_qualifiers(final_answer, min_score, allowed_horses=allowed_horses)
@@ -1051,7 +1179,16 @@ async def call_simple_gemini(prompt=None, min_score=None, max_retries=2, allowed
                                 final_answer += part.text
             
             if final_answer and len(final_answer.strip()) > 50:
-                print("✅ Simplified analysis received, applying validation...")
+                print("✅ Simplified analysis received, applying anti-hallucination checks...")
+                
+                # Check for fictional content first
+                fictional_issues = detect_fictional_content(final_answer)
+                if fictional_issues:
+                    print(f"🚨 FICTIONAL CONTENT DETECTED: {fictional_issues}")
+                    print("❌ Response rejected due to hallucinated content")
+                    continue  # Skip this attempt and retry
+                
+                print("✅ Anti-hallucination check passed, applying validation...")
                 
                 # Extract and validate qualifiers
                 valid_qualifiers = extract_valid_qualifiers(final_answer, min_score, allowed_horses=allowed_horses)
@@ -1524,7 +1661,7 @@ If NO verified meetings found for this date, return:
             
             # Check for suspicious patterns that indicate hallucination
             all_horses = [h for m in data.get("meetings", []) for r in m.get("races", []) for h in r.get("runners", [])]
-            suspicious_names = ["SUPERHEART", "CASINO SEVENTEEN", "GOLDEN SANDS", "IRON WILL", "JUST MAGICAL", "AMAZING GRACE", "BOLD VENTURE", "COSMIC FORCE", "DANCING QUEEN", "ELECTRIC STORM"]
+            suspicious_names = ["SUPERHEART", "CASINO SEVENTEEN", "GOLDEN SANDS", "IRON WILL", "JUST MAGICAL", "AMAZING GRACE", "BOLD VENTURE", "COSMIC FORCE", "DANCING QUEEN", "ELECTRIC STORM", "SUPER EXTREME", "SMART IMAGE", "FASTOBULLET"]
             
             if any(name in all_horses for name in suspicious_names):
                 print("🚨 HALLUCINATION DETECTED: Found suspicious horse names, returning empty fields")
@@ -1687,7 +1824,7 @@ Return comprehensive racing data in JSON format.
             
             # Check for suspicious patterns that indicate hallucination
             all_horses = [h for m in data.get("meetings", []) for r in m.get("races", []) for h in r.get("runners", [])]
-            suspicious_names = ["SUPERHEART", "CASINO SEVENTEEN", "GOLDEN SANDS", "IRON WILL", "JUST MAGICAL", "AMAZING GRACE", "BOLD VENTURE", "COSMIC FORCE", "DANCING QUEEN", "ELECTRIC STORM"]
+            suspicious_names = ["SUPERHEART", "CASINO SEVENTEEN", "GOLDEN SANDS", "IRON WILL", "JUST MAGICAL", "AMAZING GRACE", "BOLD VENTURE", "COSMIC FORCE", "DANCING QUEEN", "ELECTRIC STORM", "SUPER EXTREME", "SMART IMAGE", "FASTOBULLET"]
             
             if any(name in all_horses for name in suspicious_names):
                 print("🚨 HALLUCINATION DETECTED: Found suspicious horse names, returning empty fields")
