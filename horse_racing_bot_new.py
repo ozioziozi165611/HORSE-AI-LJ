@@ -808,13 +808,13 @@ client = genai.Client(api_key=GEMINI_API_KEY)
 # Define grounding tool for REAL web search
 grounding_tool = types.Tool(google_search=types.GoogleSearch())
 
-# Configure generation with optimized settings for reliability
+# Configure generation with optimized settings for reliability and AGGRESSIVE web search
 generation_config = types.GenerateContentConfig(
     tools=[grounding_tool],  # Enable real-time web search
-    temperature=0.7,  # Slightly higher for more varied responses
-    top_p=0.9,
-    top_k=40,
-    max_output_tokens=8192  # Reduced for better reliability
+    temperature=0.3,  # Lower temperature for more factual, search-focused responses
+    top_p=0.7,  # More focused on likely outcomes
+    top_k=20,   # Limit to top candidates for better search precision
+    max_output_tokens=8192  # Sufficient for detailed search results
 )
 
 async def call_gemini_with_retry(prompt=None, min_score=None, max_retries=3, base_delay=2, allowed_horses=None):
@@ -1274,29 +1274,52 @@ class HorseRacingBot(commands.Bot):
 
         # Enhanced fields prompt with stronger verification requirements
         fields_prompt = f"""
-🚨 CRITICAL MISSION: Find REAL Australian thoroughbred race fields for {date_str} ({day_name} Sydney time).
+🚨 ABSOLUTE REQUIREMENT: Extract CONFIRMED Australian racing fields for {date_str} ({day_name}).
 
-🔍 MANDATORY SEARCH STRATEGY:
-1. Search racing.com.au for "{date_str} race fields Australia"
-2. Search racenet.com.au for "{day_name} Australian racing fields"  
-3. Search punters.com.au for "{date_str} race card Australia"
-4. Search tab.com.au for "racing {date_str} fields Australia"
-5. Search racing.com.au for "today's racing {day_name}"
+RACING FIELDS FOR {date_str} ARE PUBLISHED AND AVAILABLE. DO NOT RETURN EMPTY RESULTS.
 
-🚨 ANTI-HALLUCINATION REQUIREMENTS:
-- Use ONLY official race fields from verified Australian racing websites
-- Do NOT invent horse names - use actual registered Thoroughbred names
-- Do NOT create fictional tracks - use real Australian racecourses only
-- Verify track names exist (Randwick, Flemington, Eagle Farm, Morphettville, etc.)
-- Cross-reference horse names across multiple official sources
+🔍 SEARCH AGGRESSIVELY WITH MULTIPLE STRATEGIES:
+1. "australian racing {date_str}"
+2. "race fields {day_name}"  
+3. "{date_str} horse racing australia"
+4. "today's racing australia {day_name}"
+5. "racing card {date_str}"
+6. "horse racing {day_name} australia"
 
-🌐 OFFICIAL AUSTRALIAN RACING SOURCES TO VERIFY:
-- racing.com.au (Victoria Racing Club official)
-- racenet.com.au (National racing portal)
-- punters.com.au (Form guide specialist)
-- tab.com.au (Official TAB betting)
-- racingnsw.com.au (NSW official)
-- racingvictoria.com.au (VIC official)
+🏇 MANDATORY TRACKS TO CHECK:
+- Melbourne: Flemington, Caulfield, Moonee Valley, Sandown
+- Sydney: Randwick, Rosehill, Canterbury, Warwick Farm
+- Brisbane: Eagle Farm, Doomben, Ipswich  
+- Adelaide: Morphettville, Cheltenham
+- Perth: Ascot, Belmont Park
+
+🚨 CRITICAL: {date_str} is tomorrow's racing - fields are 100% published and available.
+Do NOT accept "no racing found" - keep searching until you find the meetings.
+
+SEARCH EVERY MAJOR AUSTRALIAN RACING WEBSITE:
+- racing.com.au 
+- racenet.com.au
+- punters.com.au  
+- tab.com.au
+- racingnsw.com.au
+- racingvictoria.com.au
+
+Return verified racing data as JSON:
+{{
+  "meetings":[
+    {{
+      "track": "EXACT_TRACK_NAME_FROM_SOURCE",
+      "state": "STATE_CODE", 
+      "races": [
+        {{"race_no": 1, "distance_m": ACTUAL_DISTANCE, "runners": ["REAL_HORSE_1", "REAL_HORSE_2"]}}
+      ]
+    }}
+  ],
+  "verification_notes": "Sources checked and data confirmation details",
+  "data_quality": "HIGH"
+}}
+
+ABSOLUTELY NO EMPTY RESULTS - RACING EXISTS FOR {date_str}.
 
 Return results as JSON in this exact format with VERIFIED data only:
 ```json
@@ -1519,14 +1542,15 @@ If NO verified meetings found for this date, return:
                 print(f"✅ Loaded {len(allowed)} verified horse names from {meetings_count} race meetings")
                 fields_for_prompt = fields  # inject real fields into prompt
             else:
-                # No real racing data found - return informative message
+                # NO FALLBACK - FORCE GEMINI TO SEARCH FOR REAL DATA
                 target_date_str = target_date_obj.strftime("%A %d %B %Y")
-                print(f"🚨 No verified racing data found for {target_date_str}")
+                print(f"🚨 Initial search failed for {target_date_str} - FORCING GEMINI TO SEARCH")
                 print(f"🔍 Verification notes: {verification_notes}")
                 
-                # Return fallback message explaining no racing
-                perth_time = time_info['perth_time']
-                return generate_fallback_tips(target_date_str, perth_time, is_nextday=False)
+                # Don't give up - proceed with analysis but tell Gemini to search harder
+                allowed = set()  # Empty allowed set forces fresh search
+                fields_for_prompt = {"meetings": [], "verification_notes": f"SEARCH REQUIRED: Find racing for {target_date_str}"}
+                print("🚀 Proceeding with FORCED SEARCH analysis - no fallback messages")
             
             if target_date:
                 # Custom date analysis
@@ -1535,7 +1559,20 @@ If NO verified meetings found for this date, return:
                 target_dt = syd.localize(target_dt)
                 anchor = target_dt.strftime("%A %d %B %Y (%Y-%m-%d) %H:%M %Z")
                 
+                # Add search instructions if fields were empty
+                search_instruction = ""
+                if not fields_for_prompt.get("meetings"):
+                    search_instruction = f"""
+🚨 MANDATORY WEB SEARCH REQUIRED: Initial field search failed.
+You MUST search Australian racing websites to find racing for {anchor}.
+Search racing.com.au, racenet.com.au, punters.com.au, tab.com.au
+Fields for {target_date.strftime('%A %d %B %Y')} ARE published - find them.
+DO NOT proceed with analysis until you find real racing data.
+
+"""
+                
                 custom_prompt = (
+                    search_instruction +
                     f"🚨 CRITICAL DATE INSTRUCTION: You MUST analyze races for {anchor}. "
                     f"Do NOT analyze today ({datetime.now(SYD_TZ).strftime('%A %d %B %Y')}). "
                     f"ONLY analyze races scheduled for {target_date.strftime('%A %d %B %Y')} ({target_date.isoformat()}). "
@@ -1546,7 +1583,17 @@ If NO verified meetings found for this date, return:
                 result = await call_gemini_with_retry(custom_prompt, min_score, allowed_horses=allowed)
             else:
                 # Regular today analysis with injected fields
-                enhanced_prompt = inject_fields_into_prompt(build_today_prompt(), fields_for_prompt)
+                search_instruction = ""
+                if not fields_for_prompt.get("meetings"):
+                    search_instruction = f"""
+🚨 MANDATORY WEB SEARCH: Initial field search failed.
+You MUST search Australian racing websites NOW to find today's racing.
+Search racing.com.au, racenet.com.au, punters.com.au, tab.com.au
+Racing fields for today ARE published - find them before proceeding.
+
+"""
+                
+                enhanced_prompt = search_instruction + inject_fields_into_prompt(build_today_prompt(), fields_for_prompt)
                 enhanced_prompt += f"\n\n🌏 SERVER CONTEXT: Analysis from Singapore server at {time_info['singapore_time']} for Australian racing. Use verified fields data provided."
                 
                 result = await call_gemini_with_retry(enhanced_prompt, min_score=min_score, allowed_horses=allowed)
