@@ -501,6 +501,8 @@ def build_today_prompt():
     output_contract = """
 🚨 ANTI-HALLUCINATION OUTPUT CONTRACT (MANDATORY):
 - TARGET MINIMUM: Provide 3-5 qualified horses for comprehensive coverage
+- 🚨 CRITICAL: NEVER select multiple horses from the same race - maximum ONE horse per race
+- 🚨 DIVERSIFICATION RULE: Spread selections across different tracks and race numbers
 - Begin each qualifier with: "🏇 **[VERIFIED REAL HORSE NAME]**"
 - Include line: "📍 Race: [REAL AUSTRALIAN TRACK] – Race [#] – Distance: [####] m – [Track/Going]"
 - Include line: "🧮 **LJ Analysis Score**: X/12 = Y%"
@@ -511,6 +513,7 @@ def build_today_prompt():
 - 🔒 VERIFICATION REQUIRED: All distances MUST match official race programs
 - If unable to verify any detail, mark as "UNVERIFIED" and exclude from analysis
 - 🎯 QUALITY ASSURANCE: Cast wide net across all meetings to ensure robust tip selection
+- 💡 SELECTION STRATEGY: Choose the BEST horse from each race, not multiple horses from same race
 
 🔍 SINGAPORE SERVER COMPENSATION:
 - Account for server location in Singapore but analyze Australian racing
@@ -650,11 +653,28 @@ def extract_valid_qualifiers(response_text: str, min_score: int = None, allowed_
         
         # Extract race information for conflict detection
         race_info = extract_race_info(block)
-        race_key = f"{race_info['track']}_{race_info['race_number']}" if race_info['track'] and race_info['race_number'] else None
+        race_key = None
         
-        # Check for race conflicts
+        # Create race key for conflict detection
+        if race_info['track'] and race_info['race_number']:
+            race_key = f"{race_info['track'].lower().strip()}_{race_info['race_number']}"
+        elif race_info['track']:
+            # Even without race number, check for track conflicts if multiple races at same track
+            race_key = f"{race_info['track'].lower().strip()}_unknown"
+        
+        # Enhanced race conflict detection
         if race_key and race_key in used_races:
             reasons.append("same race conflict")
+            print(f"🚨 RACE CONFLICT: {horse_name} blocked - already have selection from {race_info['track']} Race {race_info['race_number'] or 'Unknown'}")
+        
+        # Alternative conflict detection - look for same track name in existing selections
+        if not race_key and race_info['track']:
+            track_name = race_info['track'].lower().strip()
+            for existing_race in used_races:
+                if existing_race.startswith(track_name):
+                    reasons.append("same track conflict")
+                    print(f"🚨 TRACK CONFLICT: {horse_name} blocked - already have selection from {track_name}")
+                    break
         
         # More lenient field checking - allow if no allowed_horses or if it's a reasonable horse name
         if isinstance(allowed_horses, set) and len(allowed_horses) > 0:
@@ -710,12 +730,33 @@ def extract_race_info(block_text: str):
     """Extract track and race number from a horse analysis block."""
     race_info = {'track': None, 'race_number': None}
     
-    # Look for pattern like "📍 Race: Cairns – Race 8"
-    race_pattern = re.search(r'📍\s*Race:\s*([^–]+?)(?:\s*–\s*Race\s*(\d+))?', block_text, re.I)
-    if race_pattern:
-        race_info['track'] = race_pattern.group(1).strip()
-        if race_pattern.group(2):
-            race_info['race_number'] = int(race_pattern.group(2))
+    # Look for multiple patterns to catch race information
+    patterns = [
+        r'📍\s*Race:\s*([^–\-]+?)(?:\s*[–\-]\s*Race\s*(\d+))', # "📍 Race: Cairns – Race 8"
+        r'📍\s*Race:\s*([^–\-]+?)\s*[–\-]\s*Race\s*(\d+)',    # Alternative spacing
+        r'Race:\s*([^–\-]+?)\s*[–\-]\s*Race\s*(\d+)',        # Without emoji
+        r'([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s*[–\-]\s*Race\s*(\d+)', # Direct track-race pattern
+    ]
+    
+    for pattern in patterns:
+        race_pattern = re.search(pattern, block_text, re.I)
+        if race_pattern:
+            race_info['track'] = race_pattern.group(1).strip()
+            if race_pattern.group(2):
+                race_info['race_number'] = int(race_pattern.group(2))
+            break
+    
+    # Fallback: look for just track name in race line
+    if not race_info['track']:
+        track_pattern = re.search(r'📍.*?Race:\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)', block_text, re.I)
+        if track_pattern:
+            race_info['track'] = track_pattern.group(1).strip()
+    
+    # Debug logging to see what we're extracting
+    if race_info['track'] or race_info['race_number']:
+        print(f"🔍 RACE INFO EXTRACTED: Track='{race_info['track']}', Race={race_info['race_number']}")
+    else:
+        print(f"⚠️ NO RACE INFO FOUND in block: {block_text[:100]}...")
     
     return race_info
 
