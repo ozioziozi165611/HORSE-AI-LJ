@@ -12,6 +12,7 @@ import time
 import threading
 import os
 import random
+import unicodedata
 from datetime import datetime, timedelta, time as dtime
 
 def looks_plausible_fields(fields_json: dict) -> bool:
@@ -2462,23 +2463,41 @@ async def on_interaction(interaction: discord.Interaction):
             s["auto_post_enabled"] = not before
             save_settings(s)
             log_setting_change(interaction.user, "auto_post_enabled", before, s["auto_post_enabled"])
-            await interaction.response.edit_message(embed=build_auto_embed(s), view=build_horse_panel_view("auto"))
+            try:
+                await interaction.response.edit_message(embed=build_auto_embed(s), view=build_horse_panel_view("auto"))
+            except:
+                try:
+                    await interaction.edit_original_response(embed=build_auto_embed(s), view=build_horse_panel_view("auto"))
+                except:
+                    pass
             return
 
         if cid == "lj_edittimes":
-            await interaction.response.send_modal(TimesModal())
+            try:
+                await interaction.response.send_modal(TimesModal())
+            except:
+                pass
             return
 
         if cid == "lj_setscore":
-            await interaction.response.send_modal(ScoreModal())
+            try:
+                await interaction.response.send_modal(ScoreModal())
+            except:
+                pass
             return
 
         if cid == "lj_setweights":
-            await interaction.response.send_modal(WeightsModal())
+            try:
+                await interaction.response.send_modal(WeightsModal())
+            except:
+                pass
             return
 
         if cid == "lj_setsr":
-            await interaction.response.send_modal(JockeySRModal())
+            try:
+                await interaction.response.send_modal(JockeySRModal())
+            except:
+                pass
             return
 
         if cid == "lj_toggle_h2h":
@@ -2488,7 +2507,13 @@ async def on_interaction(interaction: discord.Interaction):
             save_settings(s)
             after = "exclude_negative_h2h=" + str(s["exclude_negative_h2h"])
             log_setting_change(interaction.user, "exclude_negative_h2h", before, after)
-            await interaction.response.edit_message(embed=build_config_embed(s), view=build_horse_panel_view("config"))
+            try:
+                await interaction.response.edit_message(embed=build_config_embed(s), view=build_horse_panel_view("config"))
+            except:
+                try:
+                    await interaction.edit_original_response(embed=build_config_embed(s), view=build_horse_panel_view("config"))
+                except:
+                    pass
             return
 
         if cid == "lj_toggle_distlist":
@@ -2505,30 +2530,68 @@ async def on_interaction(interaction: discord.Interaction):
             
             print(f"Toggle distance whitelist: {old_value} -> {new_value}")
             
-            await interaction.response.edit_message(embed=build_config_embed(s), view=build_horse_panel_view("config"))
+            try:
+                await interaction.response.edit_message(embed=build_config_embed(s), view=build_horse_panel_view("config"))
+            except:
+                try:
+                    await interaction.edit_original_response(embed=build_config_embed(s), view=build_horse_panel_view("config"))
+                except:
+                    pass
             return
 
         if cid == "lj_pickdate":
             print(f"DEBUG: Date selection triggered, values: {interaction.data.get('values')}")
             picked = (interaction.data.get("values") or [""])[0]
             if not picked:
-                await interaction.response.send_message("❌ Please pick a date.", ephemeral=True)
+                try:
+                    await interaction.response.send_message("❌ Please pick a date.", ephemeral=True)
+                except:
+                    try:
+                        await interaction.followup.send("❌ Please pick a date.", ephemeral=True)
+                    except:
+                        pass
                 return
+            
             print(f"DEBUG: Date picked: {picked}")
             s = load_settings()
             dt = datetime.strptime(picked, "%Y-%m-%d").date()
             print(f"DEBUG: Parsed date: {dt}, Today is: {datetime.now(SYD_TZ).date()}")
-            await interaction.response.defer(ephemeral=True)
+            
+            # Safe defer - try response first, then followup if that fails
+            deferred = False
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.defer(ephemeral=True)
+                    deferred = True
+                else:
+                    # Already responded, we'll use followup later
+                    pass
+            except Exception as defer_error:
+                print(f"DEBUG: Defer failed: {defer_error}")
+                # Continue without deferring
+                pass
+            
             print(f"DEBUG: Starting analysis for specific date: {dt}")
             result = await bot.generate_analysis(s.get("min_score", 9), target_date=dt)
             print(f"DEBUG: Analysis complete, result length: {len(result) if result else 0}")
             print(f"DEBUG: First 200 chars of result: {result[:200] if result else 'None'}")
+            
             await send_analysis_message(
                 f"🗓 {dt.strftime('%A %d %B %Y')} (Sydney)\n\n{result}",
                 title=f"🏇 LJ Scan — {dt.isoformat()} (Config min {s.get('min_score', 9)}/12)",
                 channel_id=interaction.channel.id
             )
-            await interaction.followup.send("✅ Scan posted in this channel.", ephemeral=True)
+            
+            # Send confirmation
+            try:
+                if deferred:
+                    await interaction.followup.send("✅ Scan posted in this channel.", ephemeral=True)
+                else:
+                    await interaction.response.send_message("✅ Scan posted in this channel.", ephemeral=True)
+            except Exception as confirm_error:
+                print(f"DEBUG: Confirmation send failed: {confirm_error}")
+                # Don't crash on confirmation failure
+                pass
             return
 
     except Exception as e:
@@ -2537,8 +2600,12 @@ async def on_interaction(interaction: discord.Interaction):
         import traceback
         traceback.print_exc()
         try:
-            await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
-        except:
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
+            else:
+                await interaction.followup.send(f"❌ Error: {e}", ephemeral=True)
+        except Exception as error_send_fail:
+            print(f"Failed to send error message: {error_send_fail}")
             pass
 
 # ===== MAIN EXECUTION =====
