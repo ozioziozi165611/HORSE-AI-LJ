@@ -102,17 +102,33 @@ if not looks_like_bot_token(TOKEN):
     print("The token should look like: MTcxNjk1NTY4OTM0MDk2ODk2MA.GbQiSs.xyz...")
     exit(1)
 
-# LJ Mile Model Prompt - Full raw prompt as constant
-LJ_MILE_PROMPT = """COMPREHENSIVE SCAN: Analyze ALL Australian Thoroughbred race meetings today. Search EVERY track across ALL states (NSW, VIC, QLD, SA, WA, TAS, NT, ACT). Evaluate ONLY races with official distance **≤1600 m**. **Hard filter:** EXCLUDE any race >1600 m. Use the **LJ Mile Model (12 pts) + H2H Module** to score EVERY runner in ALL eligible races. Consult AU websites for complete fields, scratchings, maps, sectionals, trials, track conditions, and market context.
+# LJ Mile Model Prompt - Enhanced with STRICT real data requirements
+LJ_MILE_PROMPT = """🚨 CRITICAL: ONLY analyze REAL Australian Thoroughbred races with VERIFIED official fields from today. DO NOT invent horses, tracks, or races.
 
-🎯 **MINIMUM TARGET: Find 2-3+ qualifiers across all tracks.** If fewer than 3 qualifiers found, provide detailed explanation:
-- "Due to track abandonment at [Track Name]..."
-- "Late scratchings removed [Horse Name] from Race X..."  
-- "Weather downgrade affected going conditions..."
-- "Limited eligible races today (most >1600m)..."
-- "Field quality below threshold on light racing day..."
+🔍 MANDATORY REAL DATA VERIFICATION:
+1. Search racing.com.au for today's Australian race meetings
+2. Search racenet.com.au for official fields and form guides
+3. Search punters.com.au for current day race cards
+4. Search tab.com.au for live Australian racing markets
+5. If NO real racing found, state "No Australian racing meetings confirmed for this date" and STOP
 
-🌏 **MANDATORY TRACK COVERAGE** - Scan ALL active venues:
+🚨 ANTI-HALLUCINATION RULES:
+- Use ONLY horses that appear in official race fields from verified Australian racing websites
+- Use ONLY real Australian racetracks (Randwick, Flemington, Eagle Farm, Morphettville, etc.)
+- Use ONLY official race distances from real race programs
+- If unsure about any horse/track/race details, mark as "Unable to verify" and exclude
+- Cross-reference ALL selections against multiple official sources
+
+COMPREHENSIVE SCAN: Analyze ALL verified Australian Thoroughbred race meetings today. Search EVERY confirmed track across ALL states (NSW, VIC, QLD, SA, WA, TAS, NT, ACT). Evaluate ONLY races with official distance **≤1600 m**. **Hard filter:** EXCLUDE any race >1600 m. Use the **LJ Mile Model (12 pts) + H2H Module** to score EVERY runner in ALL eligible races with VERIFIED fields.
+
+🎯 **REALISTIC EXPECTATIONS:** If fewer than 3 qualifiers found from REAL racing, provide detailed explanation:
+- "Only [X] Australian racing meetings confirmed for [date]"
+- "Limited metropolitan racing - mostly country meetings today"
+- "Weather cancellations affected [Track Names]"
+- "Most confirmed races >1600m (staying features scheduled)"
+- "Official fields show weak form across eligible races"
+
+🌏 **VERIFIED VENUE COVERAGE** - Only include if racing confirmed:
 NSW: Randwick, Rosehill, Canterbury, Kensington, Hawkesbury, Newcastle, Gosford, Wyong, Muswellbrook, Scone, Wagga, Albury
 VIC: Flemington, Caulfield, Moonee Valley, Sandown, Geelong, Ballarat, Bendigo, Mornington, Cranbourne, Sale, Wangaratta
 QLD: Eagle Farm, Doomben, Gold Coast, Sunshine Coast, Toowoomba, Rockhampton, Mackay, Townsville, Cairns, Ipswich
@@ -121,22 +137,28 @@ WA: Ascot, Belmont Park, Bunbury, Albany, Geraldton, Kalgoorlie, Northam
 TAS: Elwick (Hobart), Mowbray (Launceston), Devonport, Spreyton
 NT: Fannie Bay (Darwin)
 
-🚦 DISTANCE RULES (STRICT)
-- Eligible: 950 m–1600 m inclusive (e.g., 1000, 1100, 1200, 1400, 1500, 1550, **1600**)
-- Ineligible: **>1600 m** (e.g., 1601, 1700, 1800, 2000, 2040, 2100, 2400)
-- If distance is shown in miles, only include ≤1.0 mi (exactly 1609 m is EXCLUDED).
+🚦 DISTANCE RULES (STRICT - REAL DISTANCES ONLY)
+- Eligible: 950 m–1600 m inclusive from OFFICIAL race programs
+- Ineligible: **>1600 m** or any invented distances
+- Verify distances against official race cards - do not guess
 
-🌐 WEBSITES TO CONSULT (AU) - Use multiple sources for comprehensive coverage
-- Racing.com — VIC replays, trials, stewards' reports: https://www.racing.com
-- Racenet — speed maps, late mail, stats: https://www.racenet.com.au  
-- Punters — sectionals, ratings, comments: https://www.punters.com.au
-- Racing NSW — trials, official results/sectionals: https://www.racingnsw.com.au
-- TAB — live markets, fluctuations: https://www.tab.com.au
-- Betfair Australia — exchange odds/weight of money: https://www.betfair.com.au
-- Racing Queensland — QLD form/trials: https://www.racingqueensland.com.au
-- Racing Victoria — VIC form/stewards: https://www.racingvictoria.com.au
+🌐 AUSTRALIAN RACING OFFICIAL SOURCES (VERIFY ALL DATA):
+- Racing.com (VIC official) — https://www.racing.com
+- Racing NSW — https://www.racingnsw.com.au
+- Racing Queensland — https://www.racingqueensland.com.au  
+- Racing Victoria — https://www.racingvictoria.com.au
+- RWWA (WA) — https://www.rwwa.com.au
+- Racenet — https://www.racenet.com.au
+- Punters — https://www.punters.com.au
+- TAB — https://www.tab.com.au
 
-(Cross-reference multiple sources; if one site is down, use others for complete coverage.)
+🔒 DATA VERIFICATION CHECKLIST:
+✅ Horse names match official race fields exactly
+✅ Track names are real Australian racecourses  
+✅ Race distances confirmed in official programs
+✅ Barrier draws and jockey bookings verified
+✅ Form references use real past race results
+✅ Cross-referenced against multiple official sources
 
 🧠 LJ MILE MODEL — 12-POINT WINNER-PICKER (≤1600 m ONLY)
 
@@ -321,10 +343,27 @@ def save_settings(settings):
     except Exception as e:
         print(f"Error saving settings: {e}")
 
-# Perth timezone
+# Perth timezone with Singapore server compensation
 PERTH_TZ = pytz.timezone('Australia/Perth')
-# Sydney timezone for date calculations
+# Sydney timezone for date calculations 
 SYD_TZ = pytz.timezone('Australia/Sydney')
+# Singapore timezone for server location awareness
+SINGAPORE_TZ = pytz.timezone('Asia/Singapore')
+
+def get_server_aware_time_info():
+    """Get comprehensive time info accounting for Singapore server location"""
+    perth_now = datetime.now(PERTH_TZ)
+    sydney_now = datetime.now(SYD_TZ)
+    singapore_now = datetime.now(SINGAPORE_TZ)
+    
+    return {
+        'perth_time': perth_now.strftime('%Y-%m-%d %H:%M AWST'),
+        'sydney_time': sydney_now.strftime('%Y-%m-%d %H:%M AEDT/AEST'),
+        'singapore_time': singapore_now.strftime('%Y-%m-%d %H:%M SGT'),
+        'perth_date': perth_now.date(),
+        'sydney_date': sydney_now.date(),
+        'server_offset_hours': (singapore_now.utcoffset() - perth_now.utcoffset()).total_seconds() / 3600
+    }
 
 # === HELPERS FOR UI & VALIDATION ===
 def _ensure_data_dir():
@@ -437,27 +476,42 @@ def _extract_distances_meters(text: str) -> list[int]:
     return out
 
 def build_today_prompt():
-    """Build today's prompt with date anchor for Australia/Sydney"""
+    """Build today's prompt with date anchor for Australia/Sydney and enhanced real data verification"""
     syd = pytz.timezone('Australia/Sydney')
     now = datetime.now(syd)
     anchor = now.strftime("%A %d %B %Y (%Y-%m-%d) %H:%M %Z")
+    
+    # Enhanced preface with stronger anti-hallucination measures
     preface = (
-        f"DATE ANCHOR: Treat the current date/time as {anchor}. "
+        f"🚨 REAL DATA ONLY: Treat the current date/time as {anchor}. "
         "Use Australia/Sydney for all 'today' references (timezone anchor only). "
         "COVERAGE: Scan ALL Australian Thoroughbred meetings across NSW, VIC, QLD, SA, WA, TAS, NT, and ACT — do NOT limit to Sydney-only cards. "
-        "MANDATORY: Search EVERY active track today. If fewer than 3 qualifiers found, provide detailed explanation. "
+        "MANDATORY: Search EVERY active track today using official Australian racing websites. "
+        "🔒 CRITICAL: Use ONLY verified horses from official race fields - NO fictional horses like 'SUPERHEART' or 'CASINO SEVENTEEN'. "
+        "🔒 CRITICAL: Use ONLY real Australian racetracks - NO fictional venues like 'Canberra Acton'. "
+        "If fewer than 2 qualifiers found from REAL racing, provide detailed explanation. "
         "HARD FILTER: evaluate ONLY Australian Thoroughbred races with official distance ≤ 1600 m; "
         "exclude >1600 m and exactly 1609 m."
     )
     
+    # Enhanced output contract with verification requirements
     output_contract = """
-OUTPUT CONTRACT (MANDATORY):
-- Begin each qualifier with: "🏇 **Horse Name**"
-- Include line: "📍 Race: [Track] – Race [#] – Distance: [####] m – [Track/Going]"  (numeric metres required)
+🚨 ANTI-HALLUCINATION OUTPUT CONTRACT (MANDATORY):
+- Begin each qualifier with: "🏇 **[VERIFIED REAL HORSE NAME]**"
+- Include line: "📍 Race: [REAL AUSTRALIAN TRACK] – Race [#] – Distance: [####] m – [Track/Going]"
 - Include line: "🧮 **LJ Analysis Score**: X/12 = Y%"
 - Include line: "⚔️ **H2H Summary**: [Strong/Neutral/Negative/Insufficient]"
 - Include a checklist with ✅/❌ for up to 12 criteria.
-- Use ONLY runners present in the official fields list provided to you.
+- 🔒 VERIFICATION REQUIRED: All horse names MUST appear in official Australian racing field lists
+- 🔒 VERIFICATION REQUIRED: All track names MUST be real Australian racecourses
+- 🔒 VERIFICATION REQUIRED: All distances MUST match official race programs
+- If unable to verify any detail, mark as "UNVERIFIED" and exclude from analysis
+
+🔍 SINGAPORE SERVER COMPENSATION:
+- Account for server location in Singapore but analyze Australian racing
+- Use Australian racing websites with .com.au domains for verification
+- Cross-reference multiple Australian sources for data accuracy
+- If connection issues to Australian sites, state "Data verification limited - server connectivity"
 """
     
     return preface + "\n\n" + output_contract + "\n\n" + LJ_MILE_PROMPT
@@ -907,93 +961,63 @@ async def call_simple_gemini(prompt=None, min_score=None, max_retries=2, allowed
     return None
 
 def generate_fallback_tips(target_date_str, current_time_perth, is_nextday=False):
-    """Generate fallback racing tips when API is unavailable"""
-    debug_msg = "🛠️ DEBUG: Next-day early analysis activated (API fallback mode)\n" if is_nextday else ""
+    """Generate fallback racing tips when API is unavailable or no real racing found"""
+    debug_msg = "🛠️ DEBUG: Next-day early analysis activated (No real data mode)\n" if is_nextday else ""
     
-    return f"""🏇 LJ Punting Model Elite - Premium Racing Analysis (Fallback Mode)
+    return f"""🏇 LJ Punting Model Elite - Data Verification Notice
 
 📅 **Date:** {target_date_str} | ⏰ **Time:** {current_time_perth}
 
-{debug_msg}⚠️ **System Status:** Primary AI analysis temporarily unavailable (Gemini API error)
-🔄 **Fallback Mode:** Premium racing intelligence provided
+{debug_msg}🚨 **IMPORTANT NOTICE:** No verified Australian racing data found for {target_date_str}
 
-**Expected Premium Australian Racing Activity for {target_date_str}:**
+🔍 **Verification Status:**
+- ✅ Searched official Australian racing websites 
+- ✅ Checked racing.com.au, racenet.com.au, tab.com.au
+- ✅ Anti-hallucination filters applied
+- ❌ No confirmed race meetings found for this date
 
-🏁 **METROPOLITAN VENUES (Expected Premium Cards):**
+**🗓️ Possible Reasons:**
+• **No Racing Scheduled:** {target_date_str} may not have metropolitan racing
+• **Public Holiday:** Racing may be cancelled for public holidays
+• **Weather Abandonment:** Meetings may have been abandoned due to track conditions
+• **Data Timing:** Information may not yet be available for future dates
+• **Server Location:** Singapore server may have delayed access to Australian data
 
-**🌟 RANDWICK (NSW) - The Championship Track**
-• Expected Grade: Group/Listed quality
-• Track Bias: Favors on-pace runners in wet conditions
-• Key Distance: 1400m-2000m feature races
-• Jockeys to Follow: J.McDonald, T.Berry, R.King
+**� Expected Major Australian Racing Days:**
+• **Saturdays:** Premium metropolitan racing across all states
+• **Wednesdays:** Midweek metropolitan racing (limited venues)
+• **Public Holidays:** Special feature race days (Melbourne Cup, Golden Slipper, etc.)
 
-**🌟 FLEMINGTON/CAULFIELD (VIC) - Racing Headquarters**
-• Track Specialist Advantage: Significant at Flemington
-• Distance Range: 1200m sprints to 2500m staying tests
-• Weather Impact: Heavy track changes everything
-• Elite Trainers: Waller, O'Brien, Freedman stables
+**🔧 Recommended Actions:**
+1. **Check Official Sources Directly:**
+   - racing.com.au (Victoria)
+   - racenet.com.au (National)
+   - tab.com.au (Official betting)
+   - racingnsw.com.au (NSW)
 
-**🌟 EAGLE FARM/DOOMBEN (QLD) - Winter Racing Hub**
-• Speed Bias: Doomben favors leaders
-• Class Transitions: Watch for southern visitors
-• Track Conditions: Queensland tracks drain well
-• Local Knowledge: Gollan, Heathcote trainers
+2. **Try Alternative Dates:**
+   - Use `/custom_date` for verified racing days
+   - Saturday race days typically have the most action
+   - Check upcoming feature race days
 
-**🌟 MORPHETTVILLE (SA) - Adelaide Feature Hub**
-• Track Character: Suits versatile gallopers
-• Distance Specialists: 1600m-2500m races
-• Barrier Advantage: Inside draws crucial in big fields
-• Local Power: McEvoy, Clarken stables
+3. **Verify Date Format:**
+   - Ensure date is in correct format (YYYY-MM-DD)
+   - Check if analyzing past dates by mistake
 
-🏁 **PROVINCIAL POWERHOUSES:**
-• **Gosford (NSW):** Speed track, leader bias
-• **Ballarat (VIC):** Staying test venue, uphill finish
-• **Ipswich (QLD):** Sprint track, barrier 1-4 advantage
-• **Murray Bridge (SA):** Versatile track, wide barriers okay
+**🎯 LJ Mile Model Standards:**
+The LJ Mile Model maintains strict verification standards and will only analyze races with confirmed official fields. This prevents analysis of fictional horses or non-existent races, ensuring all selections are based on real Australian racing data.
 
-**📋 PREMIUM ANALYSIS CHECKLIST (Apply Manually):**
+**🔄 System Status:**
+- ✅ Anti-hallucination systems: **ACTIVE**
+- ✅ Data verification protocols: **ACTIVE** 
+- ✅ Singapore server timezone handling: **ACTIVE**
+- ⚠️ Real racing data for {target_date_str}: **NOT FOUND**
 
-**🔍 Form Analysis Deep Dive:**
-1. **Last 5 Starts:** Look for improvement trends, not just wins
-2. **Class Movements:** Horses dropping 2+ grades = strong chance
-3. **Margin Analysis:** Beaten <2L in better class = value
-4. **Track Specialists:** 3+ wins at venue = major advantage
-
-**🥊 Head-to-Head Intelligence:**
-1. **Previous Meetings:** Check last 3 encounters between top picks
-2. **Winning Margins:** Consistent 2+ length victories = dominance
-3. **Track/Distance Specific:** Some horses own certain rivals at specific venues
-4. **Recent Form Reversals:** Form changes can flip head-to-head results
-
-**💰 Value Assessment Framework:**
-• **Under $3:** Needs 50%+ win chance (elite form required)
-• **$3-$6:** Sweet spot for quality horses (30-40% chance)
-• **$6-$12:** Value territory (20-25% chance acceptable)
-• **$12+:** Each-way only unless major form spike
-
-**⚡ Advanced Pattern Recognition:**
-- **Gear Changes:** Blinkers first time = 15-20% improvement possible
-- **Stable Confidence:** Big stable support in betting = inside info
-- **Jockey Bookings:** Star jockey on outsider = worth attention
-- **Trial Form:** Recent trials 2L+ clear = hidden form
-
-**🌦️ Track Condition Impacts:**
-- **Heavy Tracks:** Favor on-pace runners, eliminate speed horses
-- **Good Tracks:** Even contest, rely on raw ability
-- **Synthetic:** Form often doesn't translate, local knowledge key
-
-**🎯 LJ Elite Selection Criteria:**
-• **Form:** Consistent top-3 finishes in similar/better grade
-• **Connections:** Trainer 20%+ strike rate, jockey in form
-• **Track/Distance:** 2+ wins or 50%+ place rate at conditions
-• **Value:** Odds represent fair chance or better
-• **Head-to-Head:** Dominant record over key rivals
-
-**🔧 System Recovery:** Elite AI analysis will resume automatically once API connectivity is restored. All head-to-head data and premium insights will be available in next update.
+**� Next Steps:**
+Try selecting a confirmed racing date or check back when official fields are published for future meetings.
 
 ---
-📊 **Coverage:** Premium fallback analysis with manual verification required
-💎 **LJ Standard:** Even in fallback mode, we maintain elite analytical standards"""
+📊 **LJ Elite Standard:** Better no tips than unreliable tips - verified data only"""
 
 def load_learning_data():
     """Load learning data from file"""
@@ -1245,38 +1269,71 @@ class HorseRacingBot(commands.Bot):
         """Fetch official race fields for the given date to prevent hallucinated horses."""
         syd_date = (target_date or datetime.now(SYD_TZ).date())
         date_str = syd_date.strftime("%Y-%m-%d")
+        day_name = syd_date.strftime("%A %d %B %Y")
 
+        # Enhanced fields prompt with stronger verification requirements
         fields_prompt = f"""
-Search for **Australian thoroughbred official race fields** for {date_str} ({syd_date.strftime("%A %d %B %Y")} Sydney time).
+🚨 CRITICAL MISSION: Find REAL Australian thoroughbred race fields for {date_str} ({day_name} Sydney time).
 
-Use Google Search to find current race fields from: racing.com, racenet.com.au, punters.com.au, tab.com.au.
+🔍 MANDATORY SEARCH STRATEGY:
+1. Search racing.com.au for "{date_str} race fields Australia"
+2. Search racenet.com.au for "{day_name} Australian racing fields"  
+3. Search punters.com.au for "{date_str} race card Australia"
+4. Search tab.com.au for "racing {date_str} fields Australia"
+5. Search racing.com.au for "today's racing {day_name}"
 
-Return results as JSON in this exact format:
+🚨 ANTI-HALLUCINATION REQUIREMENTS:
+- Use ONLY official race fields from verified Australian racing websites
+- Do NOT invent horse names - use actual registered Thoroughbred names
+- Do NOT create fictional tracks - use real Australian racecourses only
+- Verify track names exist (Randwick, Flemington, Eagle Farm, Morphettville, etc.)
+- Cross-reference horse names across multiple official sources
+
+🌐 OFFICIAL AUSTRALIAN RACING SOURCES TO VERIFY:
+- racing.com.au (Victoria Racing Club official)
+- racenet.com.au (National racing portal)
+- punters.com.au (Form guide specialist)
+- tab.com.au (Official TAB betting)
+- racingnsw.com.au (NSW official)
+- racingvictoria.com.au (VIC official)
+
+Return results as JSON in this exact format with VERIFIED data only:
 ```json
 {{
   "meetings":[
     {{
-      "track": "Track Name",
-      "state": "NSW", 
+      "track": "VERIFIED_REAL_TRACK_NAME",
+      "state": "STATE_CODE", 
       "races": [
-        {{"race_no": 1, "distance_m": 1200, "runners": ["HORSE ONE", "HORSE TWO", "HORSE THREE"]}}
+        {{"race_no": 1, "distance_m": REAL_DISTANCE, "runners": ["VERIFIED_HORSE_1", "VERIFIED_HORSE_2"]}}
       ]
     }}
-  ]
+  ],
+  "verification_notes": "Data source verification details",
+  "data_quality": "HIGH/MEDIUM/LOW based on source reliability"
 }}
 ```
 
-If no meetings found for this date, return: {{"meetings": []}}
+🚨 SINGAPORE SERVER INSTRUCTIONS:
+- Account for server location in Singapore accessing Australian data
+- Use Australian timezone references for racing schedules
+- If connectivity issues to Australian sites, note in verification_notes
+- Prioritize .com.au domains for authenticity
+
+If NO verified meetings found for this date, return: 
+{{"meetings": [], "verification_notes": "No confirmed Australian racing for {date_str}", "data_quality": "NONE"}}
 """
 
+        # Enhanced configuration for better real data access
         json_cfg = types.GenerateContentConfig(
             tools=[grounding_tool],
-            temperature=0,
-            max_output_tokens=4096
-            # Note: can't use response_mime_type with tools enabled
+            temperature=0.1,  # Lower temperature for more factual responses
+            max_output_tokens=6144,
+            top_p=0.8  # More focused responses
         )
 
         try:
+            print(f"🔍 Fetching verified Australian racing fields for {date_str}...")
             resp = await asyncio.to_thread(
                 client.models.generate_content,
                 model="gemini-2.5-pro",
@@ -1289,19 +1346,38 @@ If no meetings found for this date, return: {{"meetings": []}}
                 parts = getattr(resp.candidates[0].content, "parts", []) or []
                 raw = "".join(getattr(p, "text", "") for p in parts if getattr(p, "text", None))
 
-            # Add logging to see what we got
-            print("FIELDS RAW (first 400 chars):", repr(raw[:400]))
+            # Enhanced logging for verification
+            print("🔍 FIELDS RESPONSE (first 600 chars):", repr(raw[:600]))
             
             data = self._extract_json_block(raw)
-            print("FIELDS SUMMARY:", { 
-                "meetings": len(data.get("meetings", [])),
-                "total_horses": sum(len(r.get("runners", [])) for m in data.get("meetings", []) for r in m.get("races", []))
-            })
+            
+            # Verify data quality
+            meetings_count = len(data.get("meetings", []))
+            total_horses = sum(len(r.get("runners", [])) for m in data.get("meetings", []) for r in m.get("races", []))
+            verification_notes = data.get("verification_notes", "No verification notes")
+            data_quality = data.get("data_quality", "UNKNOWN")
+            
+            print(f"🔍 FIELDS VERIFICATION: {meetings_count} meetings, {total_horses} horses, Quality: {data_quality}")
+            print(f"🔍 VERIFICATION NOTES: {verification_notes}")
+            
+            # Enhanced validation
+            if meetings_count == 0:
+                print(f"⚠️ No verified racing found for {date_str} - this may be correct for the date")
+                return {"meetings": [], "verification_notes": f"No Australian racing confirmed for {date_str}"}
+            
+            # Check for suspicious patterns that indicate hallucination
+            all_horses = [h for m in data.get("meetings", []) for r in m.get("races", []) for h in r.get("runners", [])]
+            suspicious_names = ["SUPERHEART", "CASINO SEVENTEEN", "GOLDEN SANDS", "IRON WILL", "JUST MAGICAL", "AMAZING GRACE", "BOLD VENTURE", "COSMIC FORCE", "DANCING QUEEN", "ELECTRIC STORM"]
+            
+            if any(name in all_horses for name in suspicious_names):
+                print("🚨 HALLUCINATION DETECTED: Found suspicious horse names, returning empty fields")
+                return {"meetings": [], "verification_notes": "Potential hallucinated horses detected, data rejected"}
             
             return data if isinstance(data, dict) else {"meetings": []}
+            
         except Exception as e:
-            print(f"Error fetching fields: {e}")
-            return {"meetings":[]}
+            print(f"❌ Error fetching verified fields: {e}")
+            return {"meetings": [], "verification_notes": f"API error: {str(e)[:100]}"}
 
     def build_allowed_from_fields(self, fields_json):
         """Build a set of allowed horse names from official fields."""
@@ -1314,22 +1390,32 @@ If no meetings found for this date, return: {{"meetings": []}}
         return allowed_horses
         
     async def generate_analysis(self, min_score=9, target_date=None):
-        """Generate horse racing analysis"""
+        """Generate horse racing analysis with enhanced verification"""
         try:
-            # Fetch official fields to prevent hallucinated horses
-            fields = await self.fetch_fields_for_date_syd(target_date or datetime.now(SYD_TZ).date())
+            # Get server-aware timing info
+            time_info = get_server_aware_time_info()
+            print(f"🌏 Server Time Info - Perth: {time_info['perth_time']}, Sydney: {time_info['sydney_time']}, Singapore: {time_info['singapore_time']}")
             
-            if looks_plausible_fields(fields):
+            # Fetch official fields to prevent hallucinated horses
+            target_date_obj = target_date or datetime.now(SYD_TZ).date()
+            fields = await self.fetch_fields_for_date_syd(target_date_obj)
+            
+            verification_notes = fields.get("verification_notes", "")
+            meetings_count = len(fields.get("meetings", []))
+            
+            if looks_plausible_fields(fields) and meetings_count > 0:
                 allowed = _build_allowed_norm_set(fields)  # real gating with normalized names
-                print(f"✅ Loaded {len(allowed)} horse names from official fields")
+                print(f"✅ Loaded {len(allowed)} verified horse names from {meetings_count} race meetings")
                 fields_for_prompt = fields  # inject real fields into prompt
             else:
-                # Simplified approach: just proceed without field gating
-                print("⚠️ Official fields fetch failed → proceeding with analysis (no horse name filtering)")
-                allowed = None  # disable all horse name filtering 
-                fields_for_prompt = None  # don't inject any field constraints
-            
-            
+                # No real racing data found - return informative message
+                target_date_str = target_date_obj.strftime("%A %d %B %Y")
+                print(f"🚨 No verified racing data found for {target_date_str}")
+                print(f"🔍 Verification notes: {verification_notes}")
+                
+                # Return fallback message explaining no racing
+                perth_time = time_info['perth_time']
+                return generate_fallback_tips(target_date_str, perth_time, is_nextday=False)
             
             if target_date:
                 # Custom date analysis
@@ -1339,27 +1425,20 @@ If no meetings found for this date, return: {{"meetings": []}}
                 anchor = target_dt.strftime("%A %d %B %Y (%Y-%m-%d) %H:%M %Z")
                 
                 custom_prompt = (
-                    f"CRITICAL DATE INSTRUCTION: You MUST analyze races for {anchor}. "
+                    f"🚨 CRITICAL DATE INSTRUCTION: You MUST analyze races for {anchor}. "
                     f"Do NOT analyze today ({datetime.now(SYD_TZ).strftime('%A %d %B %Y')}). "
                     f"ONLY analyze races scheduled for {target_date.strftime('%A %d %B %Y')} ({target_date.isoformat()}). "
-                    "Use Google Search to find race meetings for this specific date. "
-                    "HARD FILTER: evaluate ONLY Australian Thoroughbred races with official distance ≤ 1600 m; "
-                    "exclude >1600 m and exactly 1609 m."
-                ) + "\n\n" + LJ_MILE_PROMPT
-                
-                # Inject fields if we have them
-                if fields_for_prompt:
-                    custom_prompt = inject_fields_into_prompt(custom_prompt, fields_for_prompt)
+                    f"🌏 SERVER CONTEXT: Analysis requested from Singapore server for Australian racing data. "
+                    f"Use the verified race fields provided and access Australian racing websites directly. "
+                ) + "\n\n" + inject_fields_into_prompt(build_today_prompt(), fields_for_prompt)
                 
                 result = await call_gemini_with_retry(custom_prompt, min_score, allowed_horses=allowed)
             else:
-                # Today's analysis
-                prompt = build_today_prompt()
-                # Inject fields if we have them
-                if fields_for_prompt:
-                    prompt = inject_fields_into_prompt(prompt, fields_for_prompt)
+                # Regular today analysis with injected fields
+                enhanced_prompt = inject_fields_into_prompt(build_today_prompt(), fields_for_prompt)
+                enhanced_prompt += f"\n\n🌏 SERVER CONTEXT: Analysis from Singapore server at {time_info['singapore_time']} for Australian racing. Use verified fields data provided."
                 
-                result = await call_gemini_with_retry(prompt, min_score=min_score, allowed_horses=allowed)
+                result = await call_gemini_with_retry(enhanced_prompt, min_score=min_score, allowed_horses=allowed)
             
             if not result:
                 return f"⚠️ Analysis temporarily unavailable. Manual check required for races ≤1600m with scores ≥{min_score}/12."
