@@ -1344,6 +1344,116 @@ If NO verified meetings found for this date, return:
 
             raw = ""
             if resp and getattr(resp, "candidates", None):
+                for candidate in resp.candidates:
+                    if hasattr(candidate, 'content') and candidate.content:
+                        if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                            for part in candidate.content.parts:
+                                if hasattr(part, 'text') and part.text:
+                                    raw += part.text
+
+            # Enhanced logging for verification
+            print("🔍 FIELDS RESPONSE (first 600 chars):", repr(raw[:600]))
+            
+            data = self._extract_json_block(raw)
+            
+            # Verify data quality
+            meetings_count = len(data.get("meetings", []))
+            total_horses = sum(len(r.get("runners", [])) for m in data.get("meetings", []) for r in m.get("races", []))
+            verification_notes = data.get("verification_notes", "No verification notes")
+            data_quality = data.get("data_quality", "UNKNOWN")
+            
+            print(f"🔍 FIELDS VERIFICATION: {meetings_count} meetings, {total_horses} horses, Quality: {data_quality}")
+            print(f"🔍 VERIFICATION NOTES: {verification_notes}")
+            
+            # Enhanced validation
+            if meetings_count == 0:
+                print(f"⚠️ No verified racing found for {date_str} - this may be correct for the date")
+                return {"meetings": [], "verification_notes": f"No Australian racing confirmed for {date_str}"}
+            
+            # Check for suspicious patterns that indicate hallucination
+            all_horses = [h for m in data.get("meetings", []) for r in m.get("races", []) for h in r.get("runners", [])]
+            suspicious_names = ["SUPERHEART", "CASINO SEVENTEEN", "GOLDEN SANDS", "IRON WILL", "JUST MAGICAL", "AMAZING GRACE", "BOLD VENTURE", "COSMIC FORCE", "DANCING QUEEN", "ELECTRIC STORM"]
+            
+            if any(name in all_horses for name in suspicious_names):
+                print("🚨 HALLUCINATION DETECTED: Found suspicious horse names, returning empty fields")
+                return {"meetings": [], "verification_notes": "Potential hallucinated horses detected, data rejected"}
+            
+            return data if isinstance(data, dict) else {"meetings": []}
+            
+        except Exception as e:
+            print(f"❌ Error fetching verified fields: {e}")
+            return {"meetings": [], "verification_notes": f"API error: {str(e)[:100]}"}
+        fields_prompt = f"""
+🚨 CRITICAL MISSION: Find REAL Australian thoroughbred race fields for {date_str} ({day_name} Sydney time).
+
+🔍 MANDATORY SEARCH STRATEGY:
+1. Search racing.com.au for "{date_str} race fields Australia"
+2. Search racenet.com.au for "{day_name} Australian racing fields"  
+3. Search punters.com.au for "{date_str} race card Australia"
+4. Search tab.com.au for "racing {date_str} fields Australia"
+5. Search racing.com.au for "today's racing {day_name}"
+
+🚨 ANTI-HALLUCINATION REQUIREMENTS:
+- Use ONLY official race fields from verified Australian racing websites
+- Do NOT invent horse names - use actual registered Thoroughbred names
+- Do NOT create fictional tracks - use real Australian racecourses only
+- Verify track names exist (Randwick, Flemington, Eagle Farm, Morphettville, etc.)
+- Cross-reference horse names across multiple official sources
+
+🌐 OFFICIAL AUSTRALIAN RACING SOURCES TO VERIFY:
+- racing.com.au (Victoria Racing Club official)
+- racenet.com.au (National racing portal)
+- punters.com.au (Form guide specialist)
+- tab.com.au (Official TAB betting)
+- racingnsw.com.au (NSW official)
+- racingvictoria.com.au (VIC official)
+
+Return results as JSON in this exact format with VERIFIED data only:
+```json
+{{
+  "meetings":[
+    {{
+      "track": "VERIFIED_REAL_TRACK_NAME",
+      "state": "STATE_CODE", 
+      "races": [
+        {{"race_no": 1, "distance_m": REAL_DISTANCE, "runners": ["VERIFIED_HORSE_1", "VERIFIED_HORSE_2"]}}
+      ]
+    }}
+  ],
+  "verification_notes": "Data source verification details",
+  "data_quality": "HIGH/MEDIUM/LOW based on source reliability"
+}}
+```
+
+🚨 SINGAPORE SERVER INSTRUCTIONS:
+- Account for server location in Singapore accessing Australian data
+- Use Australian timezone references for racing schedules
+- If connectivity issues to Australian sites, note in verification_notes
+- Prioritize .com.au domains for authenticity
+
+If NO verified meetings found for this date, return: 
+{{"meetings": [], "verification_notes": "No confirmed Australian racing for {date_str}", "data_quality": "NONE"}}
+"""
+
+        # Enhanced configuration for better real data access
+        json_cfg = types.GenerateContentConfig(
+            tools=[grounding_tool],
+            temperature=0.1,  # Lower temperature for more factual responses
+            max_output_tokens=6144,
+            top_p=0.8  # More focused responses
+        )
+
+        try:
+            print(f"🔍 Fetching verified Australian racing fields for {date_str}...")
+            resp = await asyncio.to_thread(
+                client.models.generate_content,
+                model="gemini-2.5-pro",
+                contents=fields_prompt,
+                config=json_cfg
+            )
+
+            raw = ""
+            if resp and getattr(resp, "candidates", None):
                 parts = getattr(resp.candidates[0].content, "parts", []) or []
                 raw = "".join(getattr(p, "text", "") for p in parts if getattr(p, "text", None))
 
