@@ -642,11 +642,10 @@ def detect_fictional_content(response_text: str) -> list[str]:
         "SUPER EXTREME", "SMART IMAGE", "FASTOBULLET"
     ]
     
-    # Known fictional track names
+    # Known fictional track names (remove Canberra/Acton from this list)
     fictional_tracks = [
-        "CANBERRA (ACTON)", "CANBERRA ACTON", "ACTON", "SYNTHETIC VALLEY", 
-        "RACEWAY PARK", "METROPOLITAN DOWNS", "HERITAGE PARK", "RACING CENTRAL", 
-        "TURF VALLEY"
+        "SYNTHETIC VALLEY", "RACEWAY PARK", "METROPOLITAN DOWNS", 
+        "HERITAGE PARK", "RACING CENTRAL", "TURF VALLEY"
     ]
     
     # Check for fictional horses
@@ -659,10 +658,9 @@ def detect_fictional_content(response_text: str) -> list[str]:
         if track in response_text.upper():
             issues.append(f"Fictional track detected: {track}")
     
-    # Check for obvious hallucination patterns
+    # Check for obvious hallucination patterns (remove acton pattern)
     hallucination_patterns = [
         r"synthetic\s+surface",  # Suspicious synthetic track references
-        r"acton.*race",         # References to Acton racing
         r"heritage.*park",      # Generic track names
         r"turf.*valley"         # Generic track names
     ]
@@ -710,7 +708,7 @@ def is_real_australian_track(track_name: str) -> bool:
         'fannie bay', 'darwin',
         
         # ACT
-        'thoroughbred park'  # Note: No 'Canberra (Acton)' - that's fictional
+        'thoroughbred park', 'canberra', 'acton'  # Canberra racing (ACT)
     }
     
     # Normalize track name for comparison
@@ -729,10 +727,10 @@ def is_real_australian_track(track_name: str) -> bool:
         if real_track in normalized or normalized in real_track:
             return True
     
-    # Flag fictional tracks we've seen before
+    # Flag fictional tracks we've seen before (remove Canberra/Acton)
     fictional_tracks = {
-        'canberra acton', 'canberra (acton)', 'acton', 'synthetic valley', 'raceway park',
-        'metropolitan downs', 'heritage park', 'racing central', 'turf valley'
+        'synthetic valley', 'raceway park', 'metropolitan downs', 
+        'heritage park', 'racing central', 'turf valley'
     }
     
     if normalized in fictional_tracks:
