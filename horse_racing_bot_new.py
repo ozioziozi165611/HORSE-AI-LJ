@@ -491,7 +491,7 @@ def build_today_prompt():
         "🎯 TARGET: Find MINIMUM 3-5 QUALITY tips across all meetings and distances 950-1600m. "
         "� EXPANDED SEARCH: Include metropolitan, provincial AND country meetings for maximum coverage. "
         "�🔒 CRITICAL: Use ONLY verified horses from official race fields - NO fictional horses like 'SUPERHEART' or 'CASINO SEVENTEEN'. "
-        "🔒 CRITICAL: Use ONLY real Australian racetracks - NO fictional venues like 'Canberra Acton'. "
+        "🔒 CRITICAL: Use ONLY real Australian racetracks - verify all track names against official sources. "
         "If fewer than 3 qualifiers found from REAL racing, search harder across ALL distance categories 1000-1600m. "
         "HARD FILTER: evaluate ONLY Australian Thoroughbred races with official distance ≤ 1600 m; "
         "exclude >1600 m and exactly 1609 m."
@@ -658,9 +658,8 @@ def detect_fictional_content(response_text: str) -> list[str]:
         if track in response_text.upper():
             issues.append(f"Fictional track detected: {track}")
     
-    # Check for obvious hallucination patterns (remove acton pattern)
+    # Check for obvious hallucination patterns (be more targeted)
     hallucination_patterns = [
-        r"synthetic\s+surface",  # Suspicious synthetic track references
         r"heritage.*park",      # Generic track names
         r"turf.*valley"         # Generic track names
     ]
@@ -675,6 +674,8 @@ def is_real_australian_track(track_name: str) -> bool:
     """Validate if track name is a real Australian racecourse."""
     if not track_name:
         return False
+    
+    print(f"🔍 VALIDATING TRACK: '{track_name}'")  # Debug output
     
     # Comprehensive list of real Australian racetracks
     real_tracks = {
@@ -708,7 +709,7 @@ def is_real_australian_track(track_name: str) -> bool:
         'fannie bay', 'darwin',
         
         # ACT
-        'thoroughbred park', 'canberra', 'acton'  # Canberra racing (ACT)
+        'thoroughbred park', 'canberra', 'acton', 'canberra acton'  # Canberra racing (ACT)
     }
     
     # Normalize track name for comparison
@@ -717,6 +718,14 @@ def is_real_australian_track(track_name: str) -> bool:
     # Remove common variations
     normalized = normalized.replace('racecourse', '').replace('racing club', '').strip()
     normalized = normalized.replace('(', '').replace(')', '').strip()
+    
+    # Special handling for Canberra variations
+    if 'canberra' in normalized and 'acton' in normalized:
+        print(f"✅ CANBERRA ACTON RECOGNIZED: {track_name}")
+        return True
+    if 'canberra' in normalized:
+        print(f"✅ CANBERRA TRACK RECOGNIZED: {track_name}")
+        return True
     
     # Check direct match
     if normalized in real_tracks:
