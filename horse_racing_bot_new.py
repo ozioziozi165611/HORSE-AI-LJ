@@ -120,26 +120,27 @@ LJ_MILE_PROMPT = """🚨 CRITICAL: COMPREHENSIVE RACE-BY-RACE ANALYSIS of ALL Au
 - If unsure about any horse/track/race details, mark as "Unable to verify" and exclude
 - Cross-reference ALL selections against multiple official sources
 
-📊 COMPREHENSIVE RACE-BY-RACE MISSION: Analyze ALL verified Australian Thoroughbred race meetings today. Search EVERY confirmed track across ALL states (NSW, VIC, QLD, SA, WA, TAS, NT, ACT). For EVERY race with official distance **≤1600 m**, provide:
+📊 COMPREHENSIVE RACE-BY-RACE MISSION: Analyze ALL verified Australian Thoroughbred race meetings today. Search EVERY confirmed track across ALL states (NSW, VIC, QLD, SA, WA, TAS, NT, ACT). For EVERY SINGLE RACE regardless of distance, provide:
 
-1. **COMPLETE FIELD ANALYSIS** - Score EVERY runner in each race (not just qualifiers)
-2. **RACE-BY-RACE BREAKDOWN** - Show all horses with their LJ scores
-3. **BEST SELECTION PER RACE** - Identify the top-rated horse in each race
-4. **DETAILED REASONING** - Explain why each selection is best in their race
+1. **COMPLETE FIELD ANALYSIS** - Score EVERY runner in each race from 0-12 points
+2. **RACE-BY-RACE BREAKDOWN** - Show all horses with their LJ scores (ALL distances, not just ≤1600m)
+3. **EVERY HORSE SCORED** - No filtering, show scores 0/12 through 12/12 for complete field coverage
+4. **RACE PREVIEW** - Brief prediction of what will happen in each race
 
-🌏 **VERIFIED VENUE COVERAGE** - Only include if racing confirmed:
-NSW: Randwick, Rosehill, Canterbury, Kensington, Hawkesbury, Newcastle, Gosford, Wyong, Muswellbrook, Scone, Wagga, Albury
-VIC: Flemington, Caulfield, Moonee Valley, Sandown, Geelong, Ballarat, Bendigo, Mornington, Cranbourne, Sale, Wangaratta
-QLD: Eagle Farm, Doomben, Gold Coast, Sunshine Coast, Toowoomba, Rockhampton, Mackay, Townsville, Cairns, Ipswich
-SA: Morphettville, Murray Bridge, Gawler, Port Lincoln, Mount Gambier
-WA: Ascot, Belmont Park, Bunbury, Albany, Geraldton, Kalgoorlie, Northam
-TAS: Elwick (Hobart), Mowbray (Launceston), Devonport, Spreyton
-NT: Fannie Bay (Darwin)
+🌏 **VERIFIED VENUE COVERAGE** - Include ALL racing regardless of distance:
+NSW: Randwick, Rosehill, Canterbury, Kensington, Hawkesbury, Newcastle, Gosford, Wyong, Muswellbrook, Scone, Wagga, Albury, Nowra, Bathurst, Orange, Tamworth, Armidale, Lismore, Grafton, Taree, Port Macquarie, Coffs Harbour
+VIC: Flemington, Caulfield, Moonee Valley, Sandown, Geelong, Ballarat, Bendigo, Mornington, Cranbourne, Sale, Wangaratta, Benalla, Swan Hill, Hamilton, Warrnambool, Pakenham, Kilmore, Echuca
+QLD: Eagle Farm, Doomben, Gold Coast, Sunshine Coast, Toowoomba, Rockhampton, Mackay, Townsville, Cairns, Ipswich, Bundaberg, Gladstone, Mount Isa, Charleville
+SA: Morphettville, Murray Bridge, Gawler, Port Lincoln, Mount Gambier, Strathalbyn, Bordertown, Naracoorte
+WA: Ascot, Belmont Park, Bunbury, Albany, Geraldton, Kalgoorlie, Northam, Narrogin, Broome, Carnarvon
+TAS: Elwick (Hobart), Mowbray (Launceston), Devonport, Spreyton, Burnie
+NT: Fannie Bay (Darwin), Alice Springs
 
-🚦 DISTANCE RULES (STRICT - REAL DISTANCES ONLY)
-- Eligible: 950 m–1600 m inclusive from OFFICIAL race programs
-- Ineligible: **>1600 m** or any invented distances
-- Verify distances against official race cards - do not guess
+🚦 COMPREHENSIVE DISTANCE COVERAGE (NO FILTERING)
+- Include: ALL distances from 800m to 4000m+ from official race programs
+- Score every horse in every race regardless of distance
+- Apply LJ Mile scoring (0-12) to all races for consistency
+- NO distance exclusions - this is COMPREHENSIVE mode
 
 🌐 AUSTRALIAN RACING OFFICIAL SOURCES (VERIFY ALL DATA):
 - Racing.com (VIC official) — https://www.racing.com
@@ -159,7 +160,7 @@ NT: Fannie Bay (Darwin)
 ✅ Form references use real past race results
 ✅ Cross-referenced against multiple official sources
 
-🧠 LJ MILE MODEL — 12-POINT SCORING SYSTEM (≤1600 m ONLY)
+🧠 LJ MILE MODEL — 12-POINT SCORING SYSTEM (APPLIED TO ALL DISTANCES)
 
 Speed & Sectionals
 1) Top-3 last 600 m last start OR made strong late ground
@@ -169,14 +170,14 @@ Speed & Sectionals
 Form & Class
 4) Won/placed in same grade (or stronger) within last 6 starts
 5) **H2H advantage vs today's rivals** (see H2H Module)
-6) Proven in the 1200–1600 m band (win or close placing)
+6) Proven at today's distance (or similar band) with win or close placing
 
 Track & Conditions
 7) Proven on today's going (or adjacent band) OR prior same-course tick
 8) Handles today's direction/surface; no first-time venue/surface red flags
 
 Map, Draw & Set-Up
-9) Barrier suits run style; field size ≤12 is advantageous
+9) Barrier suits run style; field size advantages
 10) Positive gear/set-up (e.g., blinkers on; 2nd–3rd up with prior success)
 
 Rider & Weights
@@ -185,7 +186,7 @@ Rider & Weights
 
 ⚔️ H2H MODULE — MANDATORY FOR ALL RUNNERS
 
-Scope: last 12 months; prioritise 1200–1600 m, same/adjacent going, similar grade.
+Scope: last 12 months; prioritise similar distance, same/adjacent going, similar grade.
 
 A) DIRECT H2H (latest clash among today's runners):
 +2 beat rival by ≥1.0L | +1 beat by <1.0L or narrowly ahead
@@ -2050,20 +2051,55 @@ class HorseRacingBot(commands.Bot):
                     channel = self.get_channel(settings['auto_channel_id'])
                     if channel:
                         print(f"📤 Generating analysis for auto-post in #{channel.name}")
-                        analysis = await self.generate_analysis(settings.get('min_score', 9))
+                        
+                        # Check if comprehensive mode is enabled
+                        comprehensive_mode = settings.get('comprehensive_mode', False)
+                        analysis = await self.generate_analysis(settings.get('min_score', 9), comprehensive_mode=comprehensive_mode)
                         
                         # If analysis aborted or empty, don't post
                         if not analysis or analysis.startswith("⚠️ Official fields unavailable"):
                             print("⏭️ Skipping post (no trusted fields or empty analysis).")
                             return
                         
-                        embed = discord.Embed(
-                            title=f"🏇 LJ Mile Model Auto-Analysis ({current_time} AWST)",
-                            description=analysis[:4096] if len(analysis) > 4096 else analysis,
-                            color=0x00ff00,
-                            timestamp=datetime.now(timezone.utc)
-                        )
-                        await channel.send(embed=embed)
+                        # Handle comprehensive vs standard mode posting
+                        if comprehensive_mode:
+                            print(f"🔍 Posting COMPREHENSIVE analysis at {current_time}")
+                            # For comprehensive mode, send as regular message due to potential length
+                            if len(analysis) > 2000:
+                                # Split into chunks if too long
+                                chunks = []
+                                current_chunk = f"**🔍 COMPREHENSIVE Auto-Analysis ({current_time} AWST)**\n\n"
+                                lines = analysis.split('\n')
+                                
+                                for line in lines:
+                                    if len(current_chunk) + len(line) + 1 > 1900:
+                                        if current_chunk:
+                                            chunks.append(current_chunk)
+                                        current_chunk = line
+                                    else:
+                                        current_chunk += '\n' + line if current_chunk else line
+                                
+                                if current_chunk:
+                                    chunks.append(current_chunk)
+                                
+                                # Send first chunk
+                                await channel.send(chunks[0])
+                                
+                                # Send remaining chunks
+                                for chunk in chunks[1:]:
+                                    await channel.send(chunk)
+                            else:
+                                full_message = f"**🔍 COMPREHENSIVE Auto-Analysis ({current_time} AWST)**\n\n{analysis}"
+                                await channel.send(full_message)
+                        else:
+                            # Standard mode - use embed
+                            embed = discord.Embed(
+                                title=f"🏇 LJ Mile Model Auto-Analysis ({current_time} AWST)",
+                                description=analysis[:4096] if len(analysis) > 4096 else analysis,
+                                color=0x00ff00,
+                                timestamp=datetime.now(timezone.utc)
+                            )
+                            await channel.send(embed=embed)
                         self._last_post_key = post_key  # Mark as posted
                         print(f"✅ Auto-post sent successfully to #{channel.name} at {current_time}")
                         
@@ -2707,6 +2743,49 @@ async def set_score_command(interaction: discord.Interaction, score: int):
     
     await interaction.response.send_message(embed=embed)
 
+@bot.tree.command(name="comprehensive", description="Get comprehensive analysis of ALL races today")
+async def comprehensive_command(interaction: discord.Interaction):
+    """Force comprehensive analysis regardless of settings"""
+    await interaction.response.defer()
+    
+    try:
+        # Force comprehensive mode for this command
+        settings = load_settings()
+        min_score = settings.get('min_score', 9)
+        
+        analysis = await bot.generate_analysis(min_score, comprehensive_mode=True)
+        
+        # Handle comprehensive mode display (always as messages, not embeds)
+        if len(analysis) > 2000:
+            # Split into chunks if too long
+            chunks = []
+            current_chunk = "**🔍 COMPREHENSIVE ANALYSIS - ALL RACES TODAY**\n\n"
+            lines = analysis.split('\n')
+            
+            for line in lines:
+                if len(current_chunk) + len(line) + 1 > 1900:  # Leave buffer for Discord
+                    if current_chunk:
+                        chunks.append(current_chunk)
+                    current_chunk = line
+                else:
+                    current_chunk += '\n' + line if current_chunk else line
+            
+            if current_chunk:
+                chunks.append(current_chunk)
+            
+            # Send first chunk as followup
+            await interaction.followup.send(chunks[0])
+            
+            # Send remaining chunks as separate messages
+            for chunk in chunks[1:]:
+                await interaction.followup.send(chunk)
+        else:
+            full_message = f"**🔍 COMPREHENSIVE ANALYSIS - ALL RACES TODAY**\n\n{analysis}"
+            await interaction.followup.send(full_message)
+        
+    except Exception as e:
+        await interaction.followup.send(f"❌ Error generating comprehensive analysis: {str(e)[:100]}")
+
 @bot.tree.command(name="custom_date", description="Analyze racing for a specific date (within 7 days)")
 @app_commands.describe(
     date="Date in YYYY-MM-DD format (within 7 days)",
@@ -3329,7 +3408,7 @@ def build_config_embed(settings):
 
     embed = (discord.Embed(
         title="⚙️ Config",
-        description="These settings apply to **both** the scheduler and on-demand searches.",
+        description="These settings apply to **both** the scheduler and on-demand searches.\n*Comprehensive Mode overrides distance/score filters and shows ALL races.*",
         color=0x00ff00
     )
     .add_field(name="Minimum Score", value=f"{settings.get('min_score', 9)}/12", inline=True)
