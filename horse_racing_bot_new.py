@@ -250,7 +250,14 @@ For each track, organize by race number and show ALL runners with scores:
 3. Provide clear reasoning for each race selection
 4. Organize by track and race number for easy reading
 5. Include track conditions and race times
-6. NO minimum score filtering - show all runners with their scores"""
+6. NO minimum score filtering - show all runners with their scores
+7. **RACE PREVIEW**: For each race, provide a 2-3 sentence prediction of how the race will unfold
+
+📝 **RACE PREVIEW FORMAT** (Include for each race):
+**🔮 Race Preview:** [2-3 sentences describing expected pace, key matchups, likely leader, how the race will be run, and predicted finish order for top 3-4 horses]
+
+Example: "Expect a moderate pace with HORSE A likely to lead from the good gate. The main danger is HORSE B who should be charging home late from the back. HORSE C will need luck from the wide gate but has the class edge."
+"""
 
 # Validate bot token
 if not DISCORD_BOT_TOKEN:
@@ -281,6 +288,15 @@ DEFAULT_SETTINGS = {
     'distance_max_m': 1600,
     'distance_whitelist_enforced': False,   # NEW: default to band-only
     'require_official_fields': False,   # NEW: set to False for testing
+    
+    # NEW COMPREHENSIVE ANALYSIS SETTINGS
+    'show_all_races': False,  # Show every race with all runners (no filtering)
+    'show_all_runners': False,  # Show every runner in each race with scores
+    'include_race_predictions': True,  # Include race outcome predictions
+    'max_runners_per_race': 8,  # Limit runners shown per race (0 = show all)
+    'show_low_scores': False,  # Show runners with scores below minimum
+    'comprehensive_mode': False,  # Enable full comprehensive analysis mode
+    'race_preview_enabled': True,  # Show race preview/predictions
 }
 
 DEFAULT_LEARNING_DATA = {
@@ -842,7 +858,8 @@ def extract_race_details(race_content: str):
         'time': '',
         'runners': [],
         'selection': {},
-        'analysis': ''
+        'analysis': '',
+        'race_preview': ''
     }
     
     # Extract race header info
@@ -876,9 +893,14 @@ def extract_race_details(race_content: str):
         }
     
     # Extract analysis text
-    analysis_match = re.search(r'📝\s*\*\*Analysis:\*\*\s*([^⚔️🥇═]+)', race_content)
+    analysis_match = re.search(r'📝\s*\*\*Analysis:\*\*\s*([^⚔️🥇═🔮]+)', race_content)
     if analysis_match:
         race_info['analysis'] = analysis_match.group(1).strip()
+    
+    # Extract race preview
+    preview_match = re.search(r'🔮\s*\*\*Race Preview:\*\*\s*([^🥇═📝⚔️]+)', race_content)
+    if preview_match:
+        race_info['race_preview'] = preview_match.group(1).strip()
     
     return race_info
 
@@ -887,11 +909,23 @@ def format_comprehensive_analysis(race_data: dict) -> str:
     if not race_data or not race_data.get('tracks'):
         return "No race data available for comprehensive analysis."
     
+    # Load settings to determine display options
+    settings = load_settings()
+    show_all_runners = settings.get('show_all_runners', False)
+    show_low_scores = settings.get('show_low_scores', False)
+    max_runners = settings.get('max_runners_per_race', 8)
+    show_race_preview = settings.get('race_preview_enabled', True)
+    min_score = settings.get('min_score', 9)
+    
     output_parts = []
     
-    # Add header
-    output_parts.append("🏇 **LJ MILE MODEL - COMPREHENSIVE DAILY ANALYSIS**")
-    output_parts.append("═" * 50)
+    # Add header with settings info
+    mode_info = "🔍 **COMPREHENSIVE MODE**" if settings.get('comprehensive_mode', False) else "📊 **STANDARD MODE**"
+    filter_info = "No Filtering" if show_all_runners else f"Top {max_runners} runners"
+    
+    output_parts.append("🏇 **LJ MILE MODEL - DAILY RACING ANALYSIS**")
+    output_parts.append(f"{mode_info} | {filter_info}")
+    output_parts.append("═" * 45)
     output_parts.append("")
     
     # Process each track
@@ -927,30 +961,67 @@ def format_comprehensive_analysis(race_data: dict) -> str:
             
             output_parts.append(race_title)
             
-            # Show top 5 runners with scores
+            # Race preview if enabled and available
+            if show_race_preview and race_info.get('race_preview'):
+                preview = race_info['race_preview']
+                if len(preview) > 150:
+                    preview = preview[:147] + "..."
+                output_parts.append(f"🔮 {preview}")
+                output_parts.append("")
+            
+            # Show runners based on settings
             if race_info.get('runners'):
-                runners_to_show = race_info['runners'][:5]  # Top 5 only for Discord
+                runners = race_info['runners']
+                
+                # Filter runners based on settings
+                if not show_low_scores:
+                    runners = [r for r in runners if r.get('score_numeric', 0) >= min_score]
+                
+                # Limit number of runners shown
+                if max_runners > 0 and not show_all_runners:
+                    runners_to_show = runners[:max_runners]
+                else:
+                    runners_to_show = runners
+                
+                # Display runners
                 for i, runner in enumerate(runners_to_show):
                     score_num = runner.get('score_numeric', 0)
-                    score_emoji = "🔥" if score_num >= 10 else "⭐" if score_num >= 8 else "📊"
+                    
+                    # Different emojis based on score ranges
+                    if score_num >= 10:
+                        score_emoji = "🔥"
+                    elif score_num >= 8:
+                        score_emoji = "⭐"
+                    elif score_num >= 6:
+                        score_emoji = "📊"
+                    else:
+                        score_emoji = "�"
                     
                     runner_line = f"{runner['position']}. {score_emoji} **{runner['name']}** ({runner['score']})"
+                    
                     if runner.get('barrier'):
                         runner_line += f" • B{runner['barrier']}"
                     if runner.get('jockey'):
-                        runner_line += f" • {runner['jockey']}"
+                        jockey = runner['jockey']
+                        if len(jockey) > 15:  # Truncate long jockey names
+                            jockey = jockey[:12] + "..."
+                        runner_line += f" • {jockey}"
                     
                     output_parts.append(runner_line)
                 
-                # Show remaining count if more than 5
-                remaining = len(race_info['runners']) - 5
-                if remaining > 0:
-                    output_parts.append(f"   *... and {remaining} more runners*")
+                # Show remaining count if not showing all
+                remaining = len(race_info['runners']) - len(runners_to_show)
+                if remaining > 0 and not show_all_runners:
+                    low_score_count = len([r for r in race_info['runners'][len(runners_to_show):] if r.get('score_numeric', 0) < min_score])
+                    if low_score_count > 0:
+                        output_parts.append(f"   *... and {remaining} more ({low_score_count} below score threshold)*")
+                    else:
+                        output_parts.append(f"   *... and {remaining} more runners*")
             
             # Race selection with analysis
             if race_info.get('selection'):
                 selection = race_info['selection']
-                output_parts.append(f"")
+                output_parts.append("")
                 output_parts.append(f"🥇 **SELECTION: {selection['name']} ({selection['score']})**")
                 
                 if race_info.get('analysis'):
@@ -967,20 +1038,38 @@ def format_comprehensive_analysis(race_data: dict) -> str:
             output_parts.append("─" * 40)
             output_parts.append("")
     
+    # Add settings footer
+    output_parts.append("⚙️ **Display Settings:**")
+    settings_info = []
+    if show_all_runners:
+        settings_info.append("All Runners")
+    else:
+        settings_info.append(f"Top {max_runners}")
+    
+    if show_low_scores:
+        settings_info.append("Including Low Scores")
+    else:
+        settings_info.append(f"Min Score {min_score}/12")
+    
+    if show_race_preview:
+        settings_info.append("Race Previews ON")
+    
+    output_parts.append(" | ".join(settings_info))
+    
     # Check if output is too long for Discord (2000 character limit per message)
     full_text = "\n".join(output_parts)
     
-    if len(full_text) > 1900:  # Leave some buffer
+    if len(full_text) > 1800:  # Leave some buffer
         # Split into multiple parts if too long
         output_parts.append("")
-        output_parts.append("⚠️ *Full analysis truncated for Discord. Use `/analysis` for complete details.*")
+        output_parts.append("⚠️ *Analysis truncated for Discord. Use settings to reduce detail or check console for full output.*")
         
         # Take first part that fits
         truncated_parts = []
         current_length = 0
         
         for part in output_parts:
-            if current_length + len(part) + 1 > 1900:
+            if current_length + len(part) + 1 > 1800:
                 break
             truncated_parts.append(part)
             current_length += len(part) + 1
@@ -1517,6 +1606,119 @@ async def call_gemini_with_retry(prompt=None, min_score=None, max_retries=3, bas
                 continue
     
     # All retries failed, return None to trigger fallback
+    return None
+
+
+async def call_gemini_comprehensive(prompt=None, settings=None, max_retries=3, base_delay=2, allowed_horses=None):
+    """Call Gemini API for comprehensive race-by-race analysis"""
+    if prompt is None:
+        prompt = LJ_MILE_PROMPT
+    
+    if settings is None:
+        settings = load_settings()
+    
+    min_score = settings.get('min_score', 9)
+    
+    for attempt in range(max_retries):
+        try:
+            if attempt == 0:
+                print(f"🔍 Generating COMPREHENSIVE LJ Mile analysis (min score: {min_score}/12)...")
+            
+            # Add small random delay to avoid rate limits
+            if attempt > 0:
+                delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0, 1)
+                await asyncio.sleep(delay)
+            
+            resp = await asyncio.to_thread(
+                client.models.generate_content,
+                model="gemini-2.5-pro",
+                contents=prompt,
+                config=generation_config
+            )
+            
+            # Parse response by joining all text parts
+            final_answer = ""
+            if resp and hasattr(resp, 'candidates') and resp.candidates:
+                candidate = resp.candidates[0]
+                if hasattr(candidate, 'content') and candidate.content:
+                    if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                        for part in candidate.content.parts:
+                            if hasattr(part, 'text') and part.text:
+                                final_answer += part.text
+            
+            if final_answer and len(final_answer.strip()) > 100:
+                print("✅ Comprehensive response received, applying validation...")
+                
+                # Check for fictional content first
+                fictional_issues = detect_fictional_content(final_answer)
+                if fictional_issues:
+                    print(f"🚨 FICTIONAL CONTENT DETECTED: {fictional_issues}")
+                    print("❌ Response rejected due to hallucinated content")
+                    continue  # Skip this attempt and retry
+                
+                print("✅ Anti-hallucination check passed, extracting comprehensive data...")
+                
+                # Extract comprehensive race data
+                comprehensive_data = extract_race_selections(final_answer)
+                
+                if comprehensive_data and comprehensive_data.get('tracks'):
+                    print(f"📊 COMPREHENSIVE ANALYSIS SUCCESS:")
+                    print(f"   • Tracks: {comprehensive_data['total_tracks']}")
+                    print(f"   • Races: {comprehensive_data['total_races']}")
+                    print(f"   • Runners: {comprehensive_data['total_runners']}")
+                    
+                    # Format for Discord display
+                    formatted_output = format_comprehensive_analysis(comprehensive_data)
+                    
+                    # Add generation metadata
+                    meta_parts = []
+                    meta_parts.append(f"📊 **{comprehensive_data['total_tracks']} Tracks**")
+                    meta_parts.append(f"🏁 **{comprehensive_data['total_races']} Races**")
+                    meta_parts.append(f"🐎 **{comprehensive_data['total_runners']} Runners**")
+                    
+                    # Count high-scoring runners
+                    high_scores = sum(1 for track in comprehensive_data['tracks'].values() 
+                                    for race in track.get('races', {}).values() 
+                                    for runner in race.get('runners', []) 
+                                    if runner.get('score_numeric', 0) >= min_score)
+                    
+                    if high_scores > 0:
+                        meta_parts.append(f"🎯 **{high_scores} Quality Runners**")
+                    
+                    formatted_output += "\n\n" + " | ".join(meta_parts)
+                    
+                    return formatted_output
+                else:
+                    print("⚠️ No comprehensive data extracted, retrying...")
+                    if attempt < max_retries - 1:
+                        continue
+                    else:
+                        return (
+                            f"❌ Unable to generate comprehensive analysis.\n"
+                            f"Please try standard mode or check racing schedule."
+                        )
+            else:
+                if attempt < max_retries - 1:
+                    print("🔄 Retrying for better comprehensive content...")
+                continue
+                
+        except Exception as e:
+            error_msg = str(e)
+            if "500" in error_msg or "INTERNAL" in error_msg:
+                if attempt < max_retries - 1:
+                    print("🔧 Server busy, retrying...")
+                continue
+            elif "429" in error_msg or "RATE_LIMIT" in error_msg:
+                print("🚦 Rate limit detected, waiting...")
+                await asyncio.sleep(base_delay * 3)
+                continue
+            elif attempt == max_retries - 1:
+                print(f"⚠️ API issues detected: {error_msg[:50]}...")
+                break
+            else:
+                continue
+    
+    # All retries failed
     return None
 
 async def call_simple_gemini(prompt=None, min_score=None, max_retries=2, allowed_horses=None):
@@ -2250,9 +2452,14 @@ Return comprehensive racing data in JSON format.
                         allowed_horses.add(h.strip().lower())
         return allowed_horses
         
-    async def generate_analysis(self, min_score=9, target_date=None):
+    async def generate_analysis(self, min_score=9, target_date=None, comprehensive_mode=None):
         """Generate horse racing analysis with enhanced verification"""
         try:
+            # Load settings to check comprehensive mode
+            settings = load_settings()
+            if comprehensive_mode is None:
+                comprehensive_mode = settings.get('comprehensive_mode', False)
+            
             # Get server-aware timing info
             time_info = get_server_aware_time_info()
             print(f"🌏 Server Time Info - Perth: {time_info['perth_time']}, Sydney: {time_info['sydney_time']}, Singapore: {time_info['singapore_time']}")
@@ -2271,13 +2478,23 @@ Return comprehensive racing data in JSON format.
             else:
                 # NO FALLBACK - FORCE GEMINI TO SEARCH FOR REAL DATA
                 target_date_str = target_date_obj.strftime("%A %d %B %Y")
-                print(f"� Limited initial field data for {target_date_str} - will rely on AI web search during analysis")
+                print(f"⚠️ Limited initial field data for {target_date_str} - will rely on AI web search during analysis")
                 print(f"🔍 Verification notes: {verification_notes}")
                 
                 # Don't give up - proceed with analysis but tell Gemini to search harder
                 allowed = set()  # Empty allowed set forces fresh search
                 fields_for_prompt = {"meetings": [], "verification_notes": f"SEARCH REQUIRED: Find racing for {target_date_str}"}
                 print("🚀 Proceeding with AI-POWERED SEARCH analysis - Gemini will find real racing data")
+            
+            # Choose prompt based on comprehensive mode
+            if comprehensive_mode:
+                base_prompt = LJ_MILE_PROMPT  # Use comprehensive prompt
+                analysis_type = "comprehensive"
+                print(f"🔍 Using COMPREHENSIVE analysis mode")
+            else:
+                base_prompt = build_today_prompt()  # Use standard prompt
+                analysis_type = "standard"
+                print(f"📊 Using STANDARD analysis mode")
             
             if target_date:
                 # Custom date analysis
@@ -2305,9 +2522,12 @@ DO NOT proceed with analysis until you find real racing data.
                     f"ONLY analyze races scheduled for {target_date.strftime('%A %d %B %Y')} ({target_date.isoformat()}). "
                     f"🌏 SERVER CONTEXT: Analysis requested from Singapore server for Australian racing data. "
                     f"Use the verified race fields provided and access Australian racing websites directly. "
-                ) + "\n\n" + inject_fields_into_prompt(build_today_prompt(), fields_for_prompt)
+                ) + "\n\n" + inject_fields_into_prompt(base_prompt, fields_for_prompt)
                 
-                result = await call_gemini_with_retry(custom_prompt, min_score, allowed_horses=allowed)
+                if comprehensive_mode:
+                    result = await call_gemini_comprehensive(custom_prompt, settings, allowed_horses=allowed)
+                else:
+                    result = await call_gemini_with_retry(custom_prompt, min_score, allowed_horses=allowed)
             else:
                 # Regular today analysis with injected fields
                 search_instruction = ""
@@ -2320,10 +2540,13 @@ Racing fields for today ARE published - find them before proceeding.
 
 """
                 
-                enhanced_prompt = search_instruction + inject_fields_into_prompt(build_today_prompt(), fields_for_prompt)
+                enhanced_prompt = search_instruction + inject_fields_into_prompt(base_prompt, fields_for_prompt)
                 enhanced_prompt += f"\n\n🌏 SERVER CONTEXT: Analysis from Singapore server at {time_info['singapore_time']} for Australian racing. Use verified fields data provided."
                 
-                result = await call_gemini_with_retry(enhanced_prompt, min_score=min_score, allowed_horses=allowed)
+                if comprehensive_mode:
+                    result = await call_gemini_comprehensive(enhanced_prompt, settings, allowed_horses=allowed)
+                else:
+                    result = await call_gemini_with_retry(enhanced_prompt, min_score=min_score, allowed_horses=allowed)
             
             if not result:
                 return f"⚠️ Analysis temporarily unavailable. Manual check required for races ≤1600m with scores ≥{min_score}/12."
@@ -2385,21 +2608,52 @@ async def analysis_command(interaction: discord.Interaction):
     
     settings = load_settings()
     min_score = settings.get('min_score', 9)
+    comprehensive_mode = settings.get('comprehensive_mode', False)
     
     try:
-        analysis = await bot.generate_analysis(min_score)
+        analysis = await bot.generate_analysis(min_score, comprehensive_mode=comprehensive_mode)
         
-        embed = discord.Embed(
-            title=f"🏇 LJ Mile Model Analysis (≥{min_score}/12)",
-            description=analysis[:4096] if len(analysis) > 4096 else analysis,
-            color=0x00ff00,
-            timestamp=datetime.now(timezone.utc)
-        )
-        
-        perth_time = datetime.now(PERTH_TZ).strftime('%H:%M AWST')
-        embed.set_footer(text=f"Generated at {perth_time}")
-        
-        await interaction.followup.send(embed=embed)
+        # Handle comprehensive mode display
+        if comprehensive_mode:
+            # For comprehensive mode, send as regular message (not embed) due to length
+            if len(analysis) > 2000:
+                # Split into chunks if too long
+                chunks = []
+                current_chunk = ""
+                lines = analysis.split('\n')
+                
+                for line in lines:
+                    if len(current_chunk) + len(line) + 1 > 1900:  # Leave buffer for Discord
+                        if current_chunk:
+                            chunks.append(current_chunk)
+                        current_chunk = line
+                    else:
+                        current_chunk += '\n' + line if current_chunk else line
+                
+                if current_chunk:
+                    chunks.append(current_chunk)
+                
+                # Send first chunk as followup
+                await interaction.followup.send(chunks[0])
+                
+                # Send remaining chunks as separate messages
+                for chunk in chunks[1:]:
+                    await interaction.followup.send(chunk)
+            else:
+                await interaction.followup.send(analysis)
+        else:
+            # Standard mode - use embed
+            embed = discord.Embed(
+                title=f"🏇 LJ Mile Model Analysis (≥{min_score}/12)",
+                description=analysis[:4096] if len(analysis) > 4096 else analysis,
+                color=0x00ff00,
+                timestamp=datetime.now(timezone.utc)
+            )
+            
+            perth_time = datetime.now(PERTH_TZ).strftime('%H:%M AWST')
+            embed.set_footer(text=f"Generated at {perth_time}")
+            
+            await interaction.followup.send(embed=embed)
         
     except Exception as e:
         await interaction.followup.send(f"❌ Error generating analysis: {str(e)[:100]}")
@@ -2451,22 +2705,55 @@ async def custom_date_command(interaction: discord.Interaction, date: str, min_s
         
         settings = load_settings()
         score_threshold = min_score if min_score is not None else settings.get('min_score', 9)
+        comprehensive_mode = settings.get('comprehensive_mode', False)
         
         if min_score is not None and not 1 <= min_score <= 12:
             await interaction.followup.send("❌ Score must be between 1 and 12!")
             return
         
-        analysis = await bot.generate_analysis(score_threshold, target_date)
+        analysis = await bot.generate_analysis(score_threshold, target_date, comprehensive_mode=comprehensive_mode)
         
-        embed = discord.Embed(
-            title=f"🏇 LJ Mile Model - {target_date.strftime('%A, %B %d, %Y')}",
-            description=f"**Analysis for {date} (≥{score_threshold}/12)**\n\n" + 
-                       (analysis[:4000] if len(analysis) > 4000 else analysis),
-            color=0x00ff00,
-            timestamp=datetime.now(timezone.utc)
-        )
-        
-        await interaction.followup.send(embed=embed)
+        if comprehensive_mode:
+            # For comprehensive mode, send as regular message due to length
+            mode_text = "🔍 COMPREHENSIVE"
+            
+            if len(analysis) > 2000:
+                # Split into chunks if too long
+                chunks = []
+                current_chunk = f"**{mode_text} Analysis for {target_date.strftime('%A, %B %d, %Y')} (≥{score_threshold}/12)**\n\n"
+                lines = analysis.split('\n')
+                
+                for line in lines:
+                    if len(current_chunk) + len(line) + 1 > 1900:
+                        if current_chunk:
+                            chunks.append(current_chunk)
+                        current_chunk = line
+                    else:
+                        current_chunk += '\n' + line if current_chunk else line
+                
+                if current_chunk:
+                    chunks.append(current_chunk)
+                
+                # Send first chunk
+                await interaction.followup.send(chunks[0])
+                
+                # Send remaining chunks
+                for chunk in chunks[1:]:
+                    await interaction.followup.send(chunk)
+            else:
+                full_message = f"**{mode_text} Analysis for {target_date.strftime('%A, %B %d, %Y')} (≥{score_threshold}/12)**\n\n{analysis}"
+                await interaction.followup.send(full_message)
+        else:
+            # Standard mode - use embed
+            embed = discord.Embed(
+                title=f"🏇 LJ Mile Model - {target_date.strftime('%A, %B %d, %Y')}",
+                description=f"**Analysis for {date} (≥{score_threshold}/12)**\n\n" + 
+                           (analysis[:4000] if len(analysis) > 4000 else analysis),
+                color=0x00ff00,
+                timestamp=datetime.now(timezone.utc)
+            )
+            
+            await interaction.followup.send(embed=embed)
         
     except ValueError:
         await interaction.followup.send("❌ Invalid date format! Use YYYY-MM-DD (e.g., 2025-08-22)")
@@ -2657,6 +2944,151 @@ class JockeySRModal(discord.ui.Modal, title="Min Jockey Strike Rate (%)"):
         log_setting_change(interaction.user, "min_jockey_strike_rate", before, v)
         await interaction.response.send_message(f"✅ Min jockey strike rate set to {v}%", ephemeral=True)
 
+
+class AdvancedSettingsModal(discord.ui.Modal, title="Advanced Analysis Settings"):
+    def __init__(self, settings, refresh_callback=None):
+        super().__init__()
+        self.settings = settings
+        self.refresh_callback = refresh_callback
+        
+        # Initialize text inputs with current values
+        self.race_preview = discord.ui.TextInput(
+            label="Race Preview (ON/OFF)",
+            placeholder="ON",
+            default="ON" if settings.get('race_preview_enabled', True) else "OFF",
+            required=True,
+            max_length=3
+        )
+        
+        self.min_score_display = discord.ui.TextInput(
+            label="Minimum Score to Display (1-12)",
+            placeholder="6",
+            default=str(settings.get('min_score_display', 6)),
+            required=True,
+            max_length=2
+        )
+        
+        self.add_item(self.race_preview)
+        self.add_item(self.min_score_display)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            # Validate race preview setting
+            preview_val = str(self.race_preview).strip().upper()
+            if preview_val not in ['ON', 'OFF']:
+                raise ValueError("Race preview must be ON or OFF")
+            
+            # Validate minimum score
+            min_score = int(str(self.min_score_display).strip())
+            if min_score < 1 or min_score > 12:
+                raise ValueError("Minimum score must be between 1 and 12")
+            
+            # Update settings
+            self.settings['race_preview_enabled'] = (preview_val == 'ON')
+            self.settings['min_score_display'] = min_score
+            save_settings(self.settings)
+            
+            # Log changes
+            log_setting_change(interaction.user, "race_preview_enabled", 
+                             not self.settings['race_preview_enabled'], 
+                             self.settings['race_preview_enabled'])
+            log_setting_change(interaction.user, "min_score_display", 
+                             self.settings.get('min_score_display', 6), min_score)
+            
+            await interaction.response.send_message(
+                f"✅ Advanced settings updated:\n"
+                f"• Race Preview: **{preview_val}**\n"
+                f"• Min Score Display: **{min_score}/12**", 
+                ephemeral=True
+            )
+            
+        except ValueError as e:
+            await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Error updating settings: {str(e)}", ephemeral=True)
+
+
+class RunnerDisplayModal(discord.ui.Modal, title="Runner Display Settings"):
+    def __init__(self, settings, refresh_callback=None):
+        super().__init__()
+        self.settings = settings
+        self.refresh_callback = refresh_callback
+        
+        # Initialize text inputs with current values
+        self.show_all_runners = discord.ui.TextInput(
+            label="Show All Runners (ON/OFF)",
+            placeholder="OFF",
+            default="ON" if settings.get('show_all_runners', False) else "OFF",
+            required=True,
+            max_length=3
+        )
+        
+        self.max_runners = discord.ui.TextInput(
+            label="Max Runners Per Race (if not showing all)",
+            placeholder="8",
+            default=str(settings.get('max_runners_per_race', 8)),
+            required=True,
+            max_length=2
+        )
+        
+        self.show_low_scores = discord.ui.TextInput(
+            label="Show Low Scoring Runners (ON/OFF)",
+            placeholder="OFF",
+            default="ON" if settings.get('show_low_scores', False) else "OFF",
+            required=True,
+            max_length=3
+        )
+        
+        self.add_item(self.show_all_runners)
+        self.add_item(self.max_runners)
+        self.add_item(self.show_low_scores)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            # Validate show all runners
+            all_runners_val = str(self.show_all_runners).strip().upper()
+            if all_runners_val not in ['ON', 'OFF']:
+                raise ValueError("Show All Runners must be ON or OFF")
+            
+            # Validate max runners
+            max_runners = int(str(self.max_runners).strip())
+            if max_runners < 1 or max_runners > 20:
+                raise ValueError("Max runners must be between 1 and 20")
+            
+            # Validate show low scores
+            low_scores_val = str(self.show_low_scores).strip().upper()
+            if low_scores_val not in ['ON', 'OFF']:
+                raise ValueError("Show Low Scores must be ON or OFF")
+            
+            # Update settings
+            self.settings['show_all_runners'] = (all_runners_val == 'ON')
+            self.settings['max_runners_per_race'] = max_runners
+            self.settings['show_low_scores'] = (low_scores_val == 'ON')
+            save_settings(self.settings)
+            
+            # Log changes
+            log_setting_change(interaction.user, "show_all_runners", 
+                             not self.settings['show_all_runners'], 
+                             self.settings['show_all_runners'])
+            log_setting_change(interaction.user, "max_runners_per_race", 
+                             self.settings.get('max_runners_per_race', 8), max_runners)
+            log_setting_change(interaction.user, "show_low_scores", 
+                             not self.settings['show_low_scores'], 
+                             self.settings['show_low_scores'])
+            
+            await interaction.response.send_message(
+                f"✅ Runner display settings updated:\n"
+                f"• Show All Runners: **{all_runners_val}**\n"
+                f"• Max Runners: **{max_runners}** (when not showing all)\n"
+                f"• Show Low Scores: **{low_scores_val}**", 
+                ephemeral=True
+            )
+            
+        except ValueError as e:
+            await interaction.response.send_message(f"❌ {str(e)}", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Error updating settings: {str(e)}", ephemeral=True)
+
 # === VIEWS / TABS ===
 class DistancesSelect(discord.ui.Select):
     def __init__(self, selected: list[int]):
@@ -2709,23 +3141,62 @@ class AutoScheduleView(discord.ui.View):
 
 
 class ConfigView(discord.ui.View):
-    def __init__(self):
+    def __init__(self, settings=None, refresh_callback=None):
         super().__init__(timeout=300)
-        self.add_item(DistancesSelect())
+        self.settings = settings or load_settings()
+        self.refresh_callback = refresh_callback
+        
+        # Add the distances selector with current settings
+        current_distances = self.settings.get("include_distances", _distance_options())
+        self.add_item(DistancesSelect(current_distances))
 
-    @discord.ui.button(label="Set Min Score", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Set Min Score", style=discord.ButtonStyle.primary, row=0)
     async def set_score(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(ScoreModal())
 
-    @discord.ui.button(label="Set Weight Limits", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Set Weight Limits", style=discord.ButtonStyle.primary, row=0)
     async def set_weights(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(WeightsModal())
 
-    @discord.ui.button(label="Set Min Jockey SR %", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="Set Min Jockey SR %", style=discord.ButtonStyle.primary, row=0)
     async def set_jockey_sr(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(JockeySRModal())
 
-    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="Comprehensive Mode", style=discord.ButtonStyle.success, row=1)
+    async def toggle_comprehensive_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Toggle comprehensive mode on/off."""
+        self.settings['comprehensive_mode'] = not self.settings.get('comprehensive_mode', False)
+        save_settings(self.settings)
+        
+        status = "ON" if self.settings['comprehensive_mode'] else "OFF"
+        mode_desc = ("Show all tracks, races, and detailed analysis" if self.settings['comprehensive_mode'] 
+                    else "Show filtered selections only")
+        
+        await interaction.response.send_message(
+            f"🔍 **Comprehensive mode is now {status}**\n{mode_desc}", 
+            ephemeral=True
+        )
+        
+        # Update button style based on state
+        button.style = discord.ButtonStyle.success if self.settings['comprehensive_mode'] else discord.ButtonStyle.secondary
+        
+        # Refresh the view
+        if self.refresh_callback:
+            await self.refresh_callback(interaction)
+
+    @discord.ui.button(label="Analysis Settings", style=discord.ButtonStyle.secondary, emoji="⚙️", row=1)
+    async def show_advanced_settings(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Show advanced comprehensive analysis settings."""
+        modal = AdvancedSettingsModal(self.settings, refresh_callback=self.refresh_callback)
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="Runner Display", style=discord.ButtonStyle.secondary, emoji="🏇", row=1)
+    async def show_runner_settings(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Show runner display settings."""
+        modal = RunnerDisplayModal(self.settings, refresh_callback=self.refresh_callback)
+        await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="Refresh", style=discord.ButtonStyle.secondary, row=2)
     async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
         s = load_settings()
         await interaction.response.edit_message(embed=build_config_embed(s), view=build_horse_panel_view("config"))
@@ -2769,6 +3240,13 @@ def build_auto_embed(settings):
 def build_config_embed(settings):
     dists = ", ".join(map(str, settings.get("include_distances", _distance_options())))
     h2h = "✅ Exclude Negative (strict)" if settings.get("exclude_negative_h2h", True) else "❌ Allow Negative (with exceptions)"
+    
+    # Comprehensive mode settings
+    comp_mode = "✅ ON" if settings.get("comprehensive_mode", False) else "❌ OFF"
+    show_all = "✅ All" if settings.get("show_all_runners", False) else f"🔢 Top {settings.get('max_runners_per_race', 8)}"
+    race_preview = "✅ ON" if settings.get("race_preview_enabled", True) else "❌ OFF"
+    show_low = "✅ ON" if settings.get("show_low_scores", False) else "❌ OFF"
+    
     # recent changes preview
     changes = settings.get("recent_changes", [])
     if changes:
@@ -2784,7 +3262,7 @@ def build_config_embed(settings):
                      + ("(whitelist enforced)" if settings.get('distance_whitelist_enforced', False)
                         else "(whitelist not enforced)"))
 
-    return (discord.Embed(
+    embed = (discord.Embed(
         title="⚙️ Config",
         description="These settings apply to **both** the scheduler and on-demand searches.",
         color=0x00ff00
@@ -2795,7 +3273,13 @@ def build_config_embed(settings):
     .add_field(name="Distance Check", value=distance_mode, inline=False)
     .add_field(name="Included Distances (for whitelist)", value=dists or "—", inline=False)
     .add_field(name="H2H Filter", value=h2h, inline=False)
+    .add_field(name="🔍 Comprehensive Mode", value=comp_mode, inline=True)
+    .add_field(name="🏇 Runners Display", value=show_all, inline=True)
+    .add_field(name="🔮 Race Preview", value=race_preview, inline=True)
+    .add_field(name="📊 Show Low Scores", value=show_low, inline=True)
     .add_field(name="📝 Recent Changes", value=changes_text, inline=False))
+    
+    return embed
 
 
 def build_search_embed():
