@@ -3146,9 +3146,15 @@ class ConfigView(discord.ui.View):
         self.settings = settings or load_settings()
         self.refresh_callback = refresh_callback
         
+        # Add the tab selector first
+        self.add_item(HorseTabs())
+        
         # Add the distances selector with current settings
         current_distances = self.settings.get("include_distances", _distance_options())
         self.add_item(DistancesSelect(current_distances))
+        
+        # Update button states after all items are added
+        self._update_comprehensive_button()
 
     @discord.ui.button(label="Set Min Score", style=discord.ButtonStyle.primary, row=0)
     async def set_score(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -3162,7 +3168,7 @@ class ConfigView(discord.ui.View):
     async def set_jockey_sr(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(JockeySRModal())
 
-    @discord.ui.button(label="Comprehensive Mode", style=discord.ButtonStyle.success, row=1)
+    @discord.ui.button(label="Comprehensive Mode", style=discord.ButtonStyle.secondary, row=1)
     async def toggle_comprehensive_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Toggle comprehensive mode on/off."""
         self.settings['comprehensive_mode'] = not self.settings.get('comprehensive_mode', False)
@@ -3172,17 +3178,30 @@ class ConfigView(discord.ui.View):
         mode_desc = ("Show all tracks, races, and detailed analysis" if self.settings['comprehensive_mode'] 
                     else "Show filtered selections only")
         
+        # Update button style and label based on state
+        if self.settings['comprehensive_mode']:
+            button.style = discord.ButtonStyle.success
+            button.label = "Comprehensive Mode ✅"
+        else:
+            button.style = discord.ButtonStyle.secondary  
+            button.label = "Comprehensive Mode"
+        
         await interaction.response.send_message(
             f"🔍 **Comprehensive mode is now {status}**\n{mode_desc}", 
             ephemeral=True
         )
-        
-        # Update button style based on state
-        button.style = discord.ButtonStyle.success if self.settings['comprehensive_mode'] else discord.ButtonStyle.secondary
-        
-        # Refresh the view
-        if self.refresh_callback:
-            await self.refresh_callback(interaction)
+
+    def _update_comprehensive_button(self):
+        """Update the comprehensive mode button state on init"""
+        for item in self.children:
+            if hasattr(item, 'callback') and item.callback.__name__ == 'toggle_comprehensive_mode':
+                if self.settings.get('comprehensive_mode', False):
+                    item.style = discord.ButtonStyle.success
+                    item.label = "Comprehensive Mode ✅"
+                else:
+                    item.style = discord.ButtonStyle.secondary
+                    item.label = "Comprehensive Mode"
+                break
 
     @discord.ui.button(label="Analysis Settings", style=discord.ButtonStyle.secondary, emoji="⚙️", row=1)
     async def show_advanced_settings(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -3195,6 +3214,30 @@ class ConfigView(discord.ui.View):
         """Show runner display settings."""
         modal = RunnerDisplayModal(self.settings, refresh_callback=self.refresh_callback)
         await interaction.response.send_modal(modal)
+
+    @discord.ui.button(label="Toggle H2H Filter", style=discord.ButtonStyle.secondary, row=2)
+    async def toggle_h2h(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Toggle H2H negative filter."""
+        self.settings['exclude_negative_h2h'] = not self.settings.get('exclude_negative_h2h', True)
+        save_settings(self.settings)
+        
+        status = "ON" if self.settings['exclude_negative_h2h'] else "OFF"
+        await interaction.response.send_message(
+            f"🔄 H2H Negative Filter is now **{status}**", 
+            ephemeral=True
+        )
+
+    @discord.ui.button(label="Toggle Distance Whitelist", style=discord.ButtonStyle.secondary, row=2)
+    async def toggle_distance_whitelist(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Toggle distance whitelist enforcement."""
+        self.settings['distance_whitelist_enforced'] = not self.settings.get('distance_whitelist_enforced', False)
+        save_settings(self.settings)
+        
+        status = "ON" if self.settings['distance_whitelist_enforced'] else "OFF"
+        await interaction.response.send_message(
+            f"🎯 Distance Whitelist is now **{status}**", 
+            ephemeral=True
+        )
 
     @discord.ui.button(label="Refresh", style=discord.ButtonStyle.secondary, row=2)
     async def refresh(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -3334,12 +3377,9 @@ def build_horse_panel_view(which="auto"):
 
     elif which == "config":
         s = load_settings()
-        view.add_item(DistancesSelect(s.get("include_distances", _distance_options())))
-        view.add_item(discord.ui.Button(label="Set Min Score", style=discord.ButtonStyle.primary, custom_id="lj_setscore"))
-        view.add_item(discord.ui.Button(label="Set Weight Limits", style=discord.ButtonStyle.primary, custom_id="lj_setweights"))
-        view.add_item(discord.ui.Button(label="Set Min Jockey SR %", style=discord.ButtonStyle.primary, custom_id="lj_setsr"))
-        view.add_item(discord.ui.Button(label="Toggle H2H Negative Filter", style=discord.ButtonStyle.secondary, custom_id="lj_toggle_h2h"))
-        view.add_item(discord.ui.Button(label="Toggle Distance Whitelist", style=discord.ButtonStyle.secondary, custom_id="lj_toggle_distlist"))
+        # Use the new ConfigView class instead of individual buttons
+        config_view = ConfigView(s)
+        return config_view
 
     else:  # search
         opts = _next_7_days_options()
