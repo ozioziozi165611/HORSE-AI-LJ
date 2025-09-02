@@ -3359,6 +3359,12 @@ class HorseTabs(discord.ui.Select):
 
 
 def build_horse_panel_view(which="auto"):
+    if which == "config":
+        s = load_settings()
+        # Use the new ConfigView class for the config tab
+        return ConfigView(s)
+    
+    # For auto and search tabs, use the standard view structure
     view = discord.ui.View(timeout=600)
     view.add_item(HorseTabs())
 
@@ -3374,12 +3380,6 @@ def build_horse_panel_view(which="auto"):
             style=discord.ButtonStyle.primary,
             custom_id="lj_edittimes"
         ))
-
-    elif which == "config":
-        s = load_settings()
-        # Use the new ConfigView class instead of individual buttons
-        config_view = ConfigView(s)
-        return config_view
 
     else:  # search
         opts = _next_7_days_options()
