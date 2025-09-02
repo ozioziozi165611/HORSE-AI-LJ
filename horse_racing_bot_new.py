@@ -911,17 +911,27 @@ def format_comprehensive_analysis(race_data: dict) -> str:
     
     # Load settings to determine display options
     settings = load_settings()
-    show_all_runners = settings.get('show_all_runners', False)
-    show_low_scores = settings.get('show_low_scores', False)
-    max_runners = settings.get('max_runners_per_race', 8)
+    comprehensive_mode = settings.get('comprehensive_mode', False)
+    
+    # When comprehensive mode is ON, override filters to show ALL runners
+    if comprehensive_mode:
+        show_all_runners = True
+        show_low_scores = True
+        max_runners = 0  # 0 means no limit
+        min_score = 0    # Show all scores 0-12
+    else:
+        show_all_runners = settings.get('show_all_runners', False)
+        show_low_scores = settings.get('show_low_scores', False)
+        max_runners = settings.get('max_runners_per_race', 8)
+        min_score = settings.get('min_score', 9)
+    
     show_race_preview = settings.get('race_preview_enabled', True)
-    min_score = settings.get('min_score', 9)
     
     output_parts = []
     
     # Add header with settings info
-    mode_info = "🔍 **COMPREHENSIVE MODE**" if settings.get('comprehensive_mode', False) else "📊 **STANDARD MODE**"
-    filter_info = "No Filtering" if show_all_runners else f"Top {max_runners} runners"
+    mode_info = "🔍 **COMPREHENSIVE MODE**" if comprehensive_mode else "📊 **STANDARD MODE**"
+    filter_info = "All Runners & Scores" if comprehensive_mode else ("No Filtering" if show_all_runners else f"Top {max_runners} runners")
     
     output_parts.append("🏇 **LJ MILE MODEL - DAILY RACING ANALYSIS**")
     output_parts.append(f"{mode_info} | {filter_info}")
@@ -973,15 +983,19 @@ def format_comprehensive_analysis(race_data: dict) -> str:
             if race_info.get('runners'):
                 runners = race_info['runners']
                 
-                # Filter runners based on settings
-                if not show_low_scores:
-                    runners = [r for r in runners if r.get('score_numeric', 0) >= min_score]
-                
-                # Limit number of runners shown
-                if max_runners > 0 and not show_all_runners:
-                    runners_to_show = runners[:max_runners]
+                # In comprehensive mode, show ALL runners regardless of score
+                if comprehensive_mode:
+                    runners_to_show = runners  # Show all runners
                 else:
-                    runners_to_show = runners
+                    # Apply standard filtering
+                    if not show_low_scores:
+                        runners = [r for r in runners if r.get('score_numeric', 0) >= min_score]
+                    
+                    # Limit number of runners shown
+                    if max_runners > 0 and not show_all_runners:
+                        runners_to_show = runners[:max_runners]
+                    else:
+                        runners_to_show = runners
                 
                 # Display runners
                 for i, runner in enumerate(runners_to_show):
@@ -997,7 +1011,10 @@ def format_comprehensive_analysis(race_data: dict) -> str:
                     else:
                         score_emoji = "�"
                     
-                    runner_line = f"{runner['position']}. {score_emoji} **{runner['name']}** ({runner['score']})"
+                    # Format score display - always show the numeric score in comprehensive mode
+                    score_display = f"{score_num}/12" if comprehensive_mode else runner.get('score', f"{score_num}/12")
+                    
+                    runner_line = f"{runner['position']}. {score_emoji} **{runner['name']}** ({score_display})"
                     
                     if runner.get('barrier'):
                         runner_line += f" • B{runner['barrier']}"
@@ -1009,17 +1026,18 @@ def format_comprehensive_analysis(race_data: dict) -> str:
                     
                     output_parts.append(runner_line)
                 
-                # Show remaining count if not showing all
-                remaining = len(race_info['runners']) - len(runners_to_show)
-                if remaining > 0 and not show_all_runners:
-                    low_score_count = len([r for r in race_info['runners'][len(runners_to_show):] if r.get('score_numeric', 0) < min_score])
-                    if low_score_count > 0:
-                        output_parts.append(f"   *... and {remaining} more ({low_score_count} below score threshold)*")
-                    else:
-                        output_parts.append(f"   *... and {remaining} more runners*")
+                # Show remaining count only in standard mode
+                if not comprehensive_mode:
+                    remaining = len(race_info['runners']) - len(runners_to_show)
+                    if remaining > 0 and not show_all_runners:
+                        low_score_count = len([r for r in race_info['runners'][len(runners_to_show):] if r.get('score_numeric', 0) < min_score])
+                        if low_score_count > 0:
+                            output_parts.append(f"   *... and {remaining} more ({low_score_count} below score threshold)*")
+                        else:
+                            output_parts.append(f"   *... and {remaining} more runners*")
             
-            # Race selection with analysis
-            if race_info.get('selection'):
+            # Race selection with analysis (only show if there's a clear top pick in standard mode)
+            if race_info.get('selection') and not comprehensive_mode:
                 selection = race_info['selection']
                 output_parts.append("")
                 output_parts.append(f"🥇 **SELECTION: {selection['name']} ({selection['score']})**")
@@ -1041,15 +1059,19 @@ def format_comprehensive_analysis(race_data: dict) -> str:
     # Add settings footer
     output_parts.append("⚙️ **Display Settings:**")
     settings_info = []
-    if show_all_runners:
-        settings_info.append("All Runners")
+    if comprehensive_mode:
+        settings_info.append("COMPREHENSIVE: All Runners")
+        settings_info.append("All Scores (0-12/12)")
     else:
-        settings_info.append(f"Top {max_runners}")
-    
-    if show_low_scores:
-        settings_info.append("Including Low Scores")
-    else:
-        settings_info.append(f"Min Score {min_score}/12")
+        if show_all_runners:
+            settings_info.append("All Runners")
+        else:
+            settings_info.append(f"Top {max_runners}")
+        
+        if show_low_scores:
+            settings_info.append("Including Low Scores")
+        else:
+            settings_info.append(f"Min Score {min_score}/12")
     
     if show_race_preview:
         settings_info.append("Race Previews ON")
