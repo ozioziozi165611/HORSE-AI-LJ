@@ -3153,8 +3153,15 @@ class ConfigView(discord.ui.View):
         current_distances = self.settings.get("include_distances", _distance_options())
         self.add_item(DistancesSelect(current_distances))
         
-        # Update button states after all items are added
-        self._update_comprehensive_button()
+        # Create comprehensive mode button with correct initial state
+        comp_enabled = self.settings.get('comprehensive_mode', False)
+        comp_button = discord.ui.Button(
+            label="Comprehensive Mode ✅" if comp_enabled else "Comprehensive Mode",
+            style=discord.ButtonStyle.success if comp_enabled else discord.ButtonStyle.secondary,
+            row=1
+        )
+        comp_button.callback = self.toggle_comprehensive_mode
+        self.add_item(comp_button)
 
     @discord.ui.button(label="Set Min Score", style=discord.ButtonStyle.primary, row=0)
     async def set_score(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -3168,9 +3175,10 @@ class ConfigView(discord.ui.View):
     async def set_jockey_sr(self, interaction: discord.Interaction, button: discord.ui.Button):
         await interaction.response.send_modal(JockeySRModal())
 
-    @discord.ui.button(label="Comprehensive Mode", style=discord.ButtonStyle.secondary, row=1)
-    async def toggle_comprehensive_mode(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def toggle_comprehensive_mode(self, interaction: discord.Interaction):
         """Toggle comprehensive mode on/off."""
+        button = interaction.data.get('custom_id')  # Get the button that was clicked
+        
         self.settings['comprehensive_mode'] = not self.settings.get('comprehensive_mode', False)
         save_settings(self.settings)
         
@@ -3178,30 +3186,22 @@ class ConfigView(discord.ui.View):
         mode_desc = ("Show all tracks, races, and detailed analysis" if self.settings['comprehensive_mode'] 
                     else "Show filtered selections only")
         
-        # Update button style and label based on state
-        if self.settings['comprehensive_mode']:
-            button.style = discord.ButtonStyle.success
-            button.label = "Comprehensive Mode ✅"
-        else:
-            button.style = discord.ButtonStyle.secondary  
-            button.label = "Comprehensive Mode"
-        
-        await interaction.response.send_message(
-            f"🔍 **Comprehensive mode is now {status}**\n{mode_desc}", 
-            ephemeral=True
-        )
-
-    def _update_comprehensive_button(self):
-        """Update the comprehensive mode button state on init"""
+        # Find and update the button that was clicked
         for item in self.children:
-            if hasattr(item, 'callback') and item.callback.__name__ == 'toggle_comprehensive_mode':
-                if self.settings.get('comprehensive_mode', False):
+            if isinstance(item, discord.ui.Button) and 'Comprehensive Mode' in item.label:
+                if self.settings['comprehensive_mode']:
                     item.style = discord.ButtonStyle.success
                     item.label = "Comprehensive Mode ✅"
                 else:
-                    item.style = discord.ButtonStyle.secondary
+                    item.style = discord.ButtonStyle.secondary  
                     item.label = "Comprehensive Mode"
                 break
+        
+        # Update the view with the new button state
+        await interaction.response.edit_message(
+            embed=build_config_embed(self.settings), 
+            view=self
+        )
 
     @discord.ui.button(label="Analysis Settings", style=discord.ButtonStyle.secondary, emoji="⚙️", row=1)
     async def show_advanced_settings(self, interaction: discord.Interaction, button: discord.ui.Button):
