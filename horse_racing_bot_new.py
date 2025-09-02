@@ -103,8 +103,8 @@ if not looks_like_bot_token(TOKEN):
     print("The token should look like: MTcxNjk1NTY4OTM0MDk2ODk2MA.GbQiSs.xyz...")
     exit(1)
 
-# LJ Mile Model Prompt - Enhanced with STRICT real data requirements
-LJ_MILE_PROMPT = """🚨 CRITICAL: ONLY analyze REAL Australian Thoroughbred races with VERIFIED official fields from today. DO NOT invent horses, tracks, or races.
+# LJ Mile Model Prompt - Enhanced for COMPREHENSIVE RACE-BY-RACE ANALYSIS
+LJ_MILE_PROMPT = """🚨 CRITICAL: COMPREHENSIVE RACE-BY-RACE ANALYSIS of ALL Australian Thoroughbred races today with VERIFIED official fields. DO NOT invent horses, tracks, or races.
 
 🔍 MANDATORY REAL DATA VERIFICATION:
 1. Search racing.com.au for today's Australian race meetings
@@ -120,14 +120,12 @@ LJ_MILE_PROMPT = """🚨 CRITICAL: ONLY analyze REAL Australian Thoroughbred rac
 - If unsure about any horse/track/race details, mark as "Unable to verify" and exclude
 - Cross-reference ALL selections against multiple official sources
 
-COMPREHENSIVE SCAN: Analyze ALL verified Australian Thoroughbred race meetings today. Search EVERY confirmed track across ALL states (NSW, VIC, QLD, SA, WA, TAS, NT, ACT). Evaluate ONLY races with official distance **≤1600 m**. **Hard filter:** EXCLUDE any race >1600 m. Use the **LJ Mile Model (12 pts) + H2H Module** to score EVERY runner in ALL eligible races with VERIFIED fields.
+📊 COMPREHENSIVE RACE-BY-RACE MISSION: Analyze ALL verified Australian Thoroughbred race meetings today. Search EVERY confirmed track across ALL states (NSW, VIC, QLD, SA, WA, TAS, NT, ACT). For EVERY race with official distance **≤1600 m**, provide:
 
-🎯 **REALISTIC EXPECTATIONS:** If fewer than 3 qualifiers found from REAL racing, provide detailed explanation:
-- "Only [X] Australian racing meetings confirmed for [date]"
-- "Limited metropolitan racing - mostly country meetings today"
-- "Weather cancellations affected [Track Names]"
-- "Most confirmed races >1600m (staying features scheduled)"
-- "Official fields show weak form across eligible races"
+1. **COMPLETE FIELD ANALYSIS** - Score EVERY runner in each race (not just qualifiers)
+2. **RACE-BY-RACE BREAKDOWN** - Show all horses with their LJ scores
+3. **BEST SELECTION PER RACE** - Identify the top-rated horse in each race
+4. **DETAILED REASONING** - Explain why each selection is best in their race
 
 🌏 **VERIFIED VENUE COVERAGE** - Only include if racing confirmed:
 NSW: Randwick, Rosehill, Canterbury, Kensington, Hawkesbury, Newcastle, Gosford, Wyong, Muswellbrook, Scone, Wagga, Albury
@@ -161,7 +159,7 @@ NT: Fannie Bay (Darwin)
 ✅ Form references use real past race results
 ✅ Cross-referenced against multiple official sources
 
-🧠 LJ MILE MODEL — 12-POINT WINNER-PICKER (≤1600 m ONLY)
+🧠 LJ MILE MODEL — 12-POINT SCORING SYSTEM (≤1600 m ONLY)
 
 Speed & Sectionals
 1) Top-3 last 600 m last start OR made strong late ground
@@ -185,7 +183,7 @@ Rider & Weights
 11) Jockey ≥15% last 30 days OR strong historical horse/jockey combo
 12) Winnable weight; has performed within ±1.5 kg of today's impost
 
-⚔️ H2H MODULE — MANDATORY, BE ADAMANT
+⚔️ H2H MODULE — MANDATORY FOR ALL RUNNERS
 
 Scope: last 12 months; prioritise 1200–1600 m, same/adjacent going, similar grade.
 
@@ -202,30 +200,57 @@ C) H2H SCORE & CONFIDENCE:
 Score = sum(A+B), cap −4…+4
 Confidence: Strong (≥+2 with direct clash ≤180 d), Neutral (−1…+1), Negative (≤−2)
 
-D) HARD RULES: EXCLUDE H2H Negative runners unless they score ≥11/12 AND show a fresh peak (last 2 runs). In ties prefer Strong over Neutral. If no usable links, note "H2H: Insufficient data" and continue.
+SCORING METHODOLOGY:
+- Award 1 point per satisfied criterion (12 max)
+- Score ALL runners in each race, not just high scorers
+- Apply distance filter FIRST; skip any race >1600 m
+- Treat going adjacency: Good 3–5 adjacent; Soft 6–8 adjacent; Heavy 9–10 adjacent
+- Use official fields/scratchings; ignore scratched runners
 
-SCORING & FILTERING
-- Award 1 point per satisfied criterion (12 max). Output runners with **≥9/12 only**.
-- Apply distance filter FIRST; skip any race >1600 m.
-- Treat going adjacency: Good 3–5 adjacent; Soft 6–8 adjacent; Heavy 9–10 adjacent.
-- Use official fields/scratchings; ignore scratched runners.
+📊 **MANDATORY OUTPUT FORMAT - RACE-BY-RACE COMPREHENSIVE ANALYSIS:**
 
-📊 **SCAN SUMMARY REQUIRED** - Always include at end:
-"🔍 **Scan Summary**: Analyzed [X] tracks, [Y] eligible races ≤1600m, [Z] total runners assessed. [Explanation if <3 qualifiers found]"
+For each track, organize by race number and show ALL runners with scores:
 
-🧾 RETURN FORMAT (each qualifier)
+🏁 **[TRACK NAME] - [STATE]**
+📍 **Track Conditions:** [Track/Going] | **Rail:** [Position] | **Weather:** [Conditions]
 
-🏇 **Horse Name**
-📍 Race: [Australian Venue] – Race [#] – **Distance: [####] m** – [Track/Going]
-🧮 **LJ Analysis Score**: [X/12] = [Score%]
-⚔️ **H2H Summary**: [Strong / Neutral / Negative / Insufficient] — key matchups (e.g., vs Rival A +1.2L (90d); vs Rival B −0.4L (45d); Collateral: beat X → X beat Rival C)
-✅ [Passed 1] ✅ [Passed 2] ❌ [Missed X] ...
-📝 **~100-Word LJ Analysis**: [Why this profile wins today: late speed/sectionals, class fit, map/draw, rider/weight; reinforce with H2H edges; one key risk.]
+═══════════════════════════════════════════════════
 
-ORDERING OF OUTPUT
-1) H2H Confidence/Score
-2) Criteria count
-3) Quality of last-run late splits"""
+**RACE 1 - [DISTANCE]m - [RACE NAME] - [TIME AWST]**
+
+**🏇 COMPLETE FIELD ANALYSIS:**
+1. **[HORSE NAME]** - LJ Score: **[X/12]** | Barrier: [X] | Jockey: [Name]
+2. **[HORSE NAME]** - LJ Score: **[X/12]** | Barrier: [X] | Jockey: [Name]
+3. **[HORSE NAME]** - LJ Score: **[X/12]** | Barrier: [X] | Jockey: [Name]
+[Continue for ALL runners in race]
+
+� **RACE 1 SELECTION: [BEST HORSE NAME] (LJ Score: [X/12])**
+📝 **Analysis:** [Why this horse is best in this race - 50-100 words covering key advantages over rivals, form highlights, and race setup]
+⚔️ **Key Edge:** [Main advantage over second-best runner]
+
+═══════════════════════════════════════════════════
+
+**RACE 2 - [DISTANCE]m - [RACE NAME] - [TIME AWST]**
+[Repeat format for all races]
+
+🎯 **TRACK SUMMARY:**
+- **Total Races Analyzed:** [X]
+- **Best Value Race:** Race [X] - [Horse Name]
+- **Strongest Selection:** Race [X] - [Horse Name] ([X/12])
+- **Track Bias:** [Any track biases noted]
+
+═══════════════════════════════════════════════════
+
+� **SCAN SUMMARY REQUIRED** - Always include at end:
+"🔍 **Daily Analysis Summary**: Analyzed [X] tracks, [Y] total races ≤1600m, [Z] total runners scored across all races."
+
+🎯 **KEY REQUIREMENTS:**
+1. Show EVERY horse in EVERY eligible race with their LJ score
+2. Identify the BEST selection in each race
+3. Provide clear reasoning for each race selection
+4. Organize by track and race number for easy reading
+5. Include track conditions and race times
+6. NO minimum score filtering - show all runners with their scores"""
 
 # Validate bot token
 if not DISCORD_BOT_TOKEN:
@@ -749,32 +774,356 @@ def is_real_australian_track(track_name: str) -> bool:
     print(f"⚠️ UNKNOWN TRACK: {track_name} - not in verified Australian track list")
     return False
 
+def extract_race_selections(response_text: str, allowed_horses: set[str] = None):
+    """
+    Extract race-by-race selections from comprehensive analysis format.
+    Returns organized data by track and race.
+    """
+    selections = {
+        'tracks': {},
+        'total_tracks': 0,
+        'total_races': 0,
+        'total_runners': 0,
+        'summary': ''
+    }
+    
+    # Split response into track sections
+    track_sections = re.split(r'🏁\s*\*\*([^*]+)\*\*', response_text)
+    
+    current_track = None
+    
+    for i, section in enumerate(track_sections):
+        if i == 0:
+            continue  # Skip intro text
+            
+        if i % 2 == 1:  # Track name
+            current_track = section.strip()
+            if current_track:
+                selections['tracks'][current_track] = {
+                    'races': {},
+                    'track_conditions': '',
+                    'summary': ''
+                }
+                selections['total_tracks'] += 1
+        else:  # Track content
+            if current_track and current_track in selections['tracks']:
+                # Extract track conditions
+                conditions_match = re.search(r'Track Conditions:\*\*\s*([^|]+)', section)
+                if conditions_match:
+                    selections['tracks'][current_track]['track_conditions'] = conditions_match.group(1).strip()
+                
+                # Extract races from this track
+                race_sections = re.split(r'\*\*RACE\s+(\d+)[^*]*\*\*', section)
+                
+                for j in range(1, len(race_sections), 2):
+                    if j + 1 < len(race_sections):
+                        race_num = race_sections[j]
+                        race_content = race_sections[j + 1]
+                        
+                        # Extract race details
+                        race_info = extract_race_details(race_content)
+                        if race_info:
+                            selections['tracks'][current_track]['races'][race_num] = race_info
+                            selections['total_races'] += 1
+                            selections['total_runners'] += len(race_info.get('runners', []))
+    
+    # Extract overall summary
+    summary_match = re.search(r'🔍\s*\*\*Daily Analysis Summary\*\*:([^🔍]*)', response_text)
+    if summary_match:
+        selections['summary'] = summary_match.group(1).strip()
+    
+    return selections
+
+def extract_race_details(race_content: str):
+    """Extract detailed race information including all runners and selection."""
+    race_info = {
+        'distance': '',
+        'race_name': '',
+        'time': '',
+        'runners': [],
+        'selection': {},
+        'analysis': ''
+    }
+    
+    # Extract race header info
+    header_match = re.search(r'(\d+)m\s*-\s*([^-]+?)\s*-\s*([^\n]+)', race_content)
+    if header_match:
+        race_info['distance'] = header_match.group(1) + 'm'
+        race_info['race_name'] = header_match.group(2).strip()
+        race_info['time'] = header_match.group(3).strip()
+    
+    # Extract all runners with scores
+    runner_pattern = r'(\d+)\.\s*\*\*([^*]+)\*\*\s*-\s*LJ Score:\s*\*\*(\d+/12)\*\*\s*\|\s*Barrier:\s*(\d+)\s*\|\s*Jockey:\s*([^\n]+)'
+    runners = re.findall(runner_pattern, race_content)
+    
+    for runner_match in runners:
+        runner_info = {
+            'position': int(runner_match[0]),
+            'name': runner_match[1].strip(),
+            'score': runner_match[2],
+            'score_numeric': int(runner_match[2].split('/')[0]),
+            'barrier': runner_match[3],
+            'jockey': runner_match[4].strip()
+        }
+        race_info['runners'].append(runner_info)
+    
+    # Extract race selection
+    selection_match = re.search(r'🥇\s*\*\*RACE\s+\d+\s+SELECTION:\s*([^(]+)\(LJ Score:\s*([^)]+)\)\*\*', race_content)
+    if selection_match:
+        race_info['selection'] = {
+            'name': selection_match.group(1).strip(),
+            'score': selection_match.group(2).strip()
+        }
+    
+    # Extract analysis text
+    analysis_match = re.search(r'📝\s*\*\*Analysis:\*\*\s*([^⚔️🥇═]+)', race_content)
+    if analysis_match:
+        race_info['analysis'] = analysis_match.group(1).strip()
+    
+    return race_info
+
+def format_comprehensive_analysis(race_data: dict) -> str:
+    """Format the comprehensive race-by-race analysis for Discord display."""
+    if not race_data or not race_data.get('tracks'):
+        return "No race data available for comprehensive analysis."
+    
+    output_parts = []
+    
+    # Add header
+    output_parts.append("🏇 **LJ MILE MODEL - COMPREHENSIVE DAILY ANALYSIS**")
+    output_parts.append("═" * 50)
+    output_parts.append("")
+    
+    # Process each track
+    track_count = 0
+    for track_name, track_info in race_data['tracks'].items():
+        if not track_info.get('races'):
+            continue
+            
+        track_count += 1
+        
+        # Track header
+        output_parts.append(f"🏁 **{track_name.upper()}**")
+        if track_info.get('track_conditions'):
+            output_parts.append(f"📍 {track_info['track_conditions']}")
+        output_parts.append("")
+        
+        # Process each race
+        race_numbers = sorted(track_info['races'].keys(), key=lambda x: int(x) if x.isdigit() else 999)
+        
+        for race_num in race_numbers:
+            race_info = track_info['races'][race_num]
+            
+            # Race header with key info
+            race_title = f"**R{race_num}"
+            if race_info.get('distance'):
+                race_title += f" • {race_info['distance']}"
+            if race_info.get('time'):
+                race_title += f" • {race_info['time']}"
+            race_title += "**"
+            
+            if race_info.get('race_name'):
+                race_title += f" - {race_info['race_name']}"
+            
+            output_parts.append(race_title)
+            
+            # Show top 5 runners with scores
+            if race_info.get('runners'):
+                runners_to_show = race_info['runners'][:5]  # Top 5 only for Discord
+                for i, runner in enumerate(runners_to_show):
+                    score_num = runner.get('score_numeric', 0)
+                    score_emoji = "🔥" if score_num >= 10 else "⭐" if score_num >= 8 else "📊"
+                    
+                    runner_line = f"{runner['position']}. {score_emoji} **{runner['name']}** ({runner['score']})"
+                    if runner.get('barrier'):
+                        runner_line += f" • B{runner['barrier']}"
+                    if runner.get('jockey'):
+                        runner_line += f" • {runner['jockey']}"
+                    
+                    output_parts.append(runner_line)
+                
+                # Show remaining count if more than 5
+                remaining = len(race_info['runners']) - 5
+                if remaining > 0:
+                    output_parts.append(f"   *... and {remaining} more runners*")
+            
+            # Race selection with analysis
+            if race_info.get('selection'):
+                selection = race_info['selection']
+                output_parts.append(f"")
+                output_parts.append(f"🥇 **SELECTION: {selection['name']} ({selection['score']})**")
+                
+                if race_info.get('analysis'):
+                    # Truncate analysis if too long for Discord
+                    analysis = race_info['analysis']
+                    if len(analysis) > 200:
+                        analysis = analysis[:197] + "..."
+                    output_parts.append(f"💡 {analysis}")
+            
+            output_parts.append("")
+        
+        # Add separator between tracks unless it's the last one
+        if track_count < len([t for t in race_data['tracks'].values() if t.get('races')]):
+            output_parts.append("─" * 40)
+            output_parts.append("")
+    
+    # Check if output is too long for Discord (2000 character limit per message)
+    full_text = "\n".join(output_parts)
+    
+    if len(full_text) > 1900:  # Leave some buffer
+        # Split into multiple parts if too long
+        output_parts.append("")
+        output_parts.append("⚠️ *Full analysis truncated for Discord. Use `/analysis` for complete details.*")
+        
+        # Take first part that fits
+        truncated_parts = []
+        current_length = 0
+        
+        for part in output_parts:
+            if current_length + len(part) + 1 > 1900:
+                break
+            truncated_parts.append(part)
+            current_length += len(part) + 1
+        
+        return "\n".join(truncated_parts)
+    
+    return full_text
+
 def extract_valid_qualifiers(response_text: str, min_score: int = None, allowed_horses: set[str] = None):
     """
-    Find blocks starting with '🏇 **Horse Name**' headings and validate.
-    Enhanced to ensure minimum 3 quality tips with race conflict detection and real track validation.
+    Updated to work with comprehensive race-by-race analysis format.
+    Now extracts all selections from the race-by-race breakdown.
     """
     if min_score is None:
         settings = load_settings()
         min_score = settings.get('min_score', 9)
     
-    pattern = re.compile(r'🏇\s*\*\*(.+?)\*\*', re.I)
-    matches = list(pattern.finditer(response_text))
-    valid = []
-    filtered_reasons = []
-    used_races = set()  # Track races already used
-
-    for idx, m in enumerate(matches):
-        horse_name = m.group(1).strip()
-        start = m.start()
-        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(response_text)
-        block = response_text[start:end].strip()
-
-        reasons = []
+    # Check if this is the new comprehensive format
+    if '� **' in response_text and 'RACE ' in response_text and 'COMPLETE FIELD ANALYSIS' in response_text:
+        # Use the new race extraction method for comprehensive format
+        race_data = extract_race_selections(response_text, allowed_horses)
         
-        # Extract race information for conflict detection
-        race_info = extract_race_info(block)
-        race_key = None
+        valid_selections = []
+        filtered_reasons = []
+        
+        # Process each track and race
+        for track_name, track_info in race_data['tracks'].items():
+            for race_num, race_info in track_info['races'].items():
+                if race_info.get('selection'):
+                    selection = race_info['selection']
+                    
+                    # Create a selection block for validation
+                    selection_block = f"""🏇 **{selection['name']}**
+📍 Race: {track_name} – Race {race_num} – Distance: {race_info.get('distance', 'Unknown')}
+🧮 **LJ Analysis Score**: {selection['score']}
+📝 **Analysis**: {race_info.get('analysis', 'No analysis available')}"""
+                    
+                    # Validate this selection
+                    reasons = []
+                    
+                    # Check if track is real
+                    if track_name and not is_real_australian_track(track_name):
+                        reasons.append(f"Fictional track: {track_name}")
+                    
+                    # Check distance eligibility
+                    if not _meters_ok(selection_block):
+                        reasons.append("Distance not eligible (>1600m or not in range)")
+                    
+                    # Check score meets minimum (extract numeric score)
+                    score_numeric = 0
+                    if '/' in selection['score']:
+                        try:
+                            score_numeric = int(selection['score'].split('/')[0])
+                        except ValueError:
+                            pass
+                    
+                    if score_numeric < min_score:
+                        reasons.append(f"Score {score_numeric}/12 below minimum {min_score}")
+                    
+                    # Check allowed horses if provided
+                    if isinstance(allowed_horses, set) and len(allowed_horses) > 0:
+                        if not _in_allowed(selection['name'], allowed_horses):
+                            reasons.append(f"Horse not in official fields")
+                    
+                    if not reasons:
+                        valid_selections.append(selection_block)
+                    else:
+                        filtered_reasons.append(f"{selection['name']} (Race {race_num}): {', '.join(reasons)}")
+        
+        if filtered_reasons:
+            print(f"⚠️ Filtered selections: {len(filtered_reasons)}")
+            for reason in filtered_reasons[:5]:  # Show first 5
+                print(f"  - {reason}")
+        
+        print(f"📊 COMPREHENSIVE ANALYSIS: {len(valid_selections)} race selections extracted")
+        print(f"   Total tracks: {race_data['total_tracks']}")
+        print(f"   Total races: {race_data['total_races']}")
+        print(f"   Total runners scored: {race_data['total_runners']}")
+        
+        # Store the comprehensive data for formatting
+        if hasattr(extract_valid_qualifiers, '_last_comprehensive_data'):
+            extract_valid_qualifiers._last_comprehensive_data = race_data
+        else:
+            setattr(extract_valid_qualifiers, '_last_comprehensive_data', race_data)
+        
+        return valid_selections
+    
+    else:
+        # Fall back to original format parsing
+        pattern = re.compile(r'🏇\s*\*\*(.+?)\*\*', re.I)
+        matches = list(pattern.finditer(response_text))
+        valid = []
+        filtered_reasons = []
+        used_races = set()  # Track races already used
+
+        for idx, m in enumerate(matches):
+            horse_name = m.group(1).strip()
+            start = m.start()
+            end = matches[idx + 1].start() if idx + 1 < len(matches) else len(response_text)
+            block = response_text[start:end].strip()
+
+            reasons = []
+            
+            # Extract race information for conflict detection
+            race_info = extract_race_info(block)
+            race_key = None
+            
+            # CRITICAL: Validate track is real Australian racecourse
+            if race_info['track'] and not is_real_australian_track(race_info['track']):
+                reasons.append(f"Fictional track: {race_info['track']}")
+            
+            # Create race key for conflict detection
+            if race_info['track'] and race_info['race_number']:
+                race_key = f"{race_info['track'].lower()}_{race_info['race_number']}"
+            elif race_info['track']:
+                race_key = f"{race_info['track'].lower()}_unknown"
+            
+            # Enhanced race conflict detection
+            if race_key and race_key in used_races:
+                reasons.append(f"Race conflict: {race_info['track']} Race {race_info['race_number']} already selected")
+            
+            # More lenient field checking - allow if no allowed_horses or if it's a reasonable horse name
+            if isinstance(allowed_horses, set) and len(allowed_horses) > 0:
+                if not _in_allowed(horse_name, allowed_horses):
+                    reasons.append(f"Horse not in official fields")
+            
+            if not _meters_ok(block):
+                reasons.append("Distance not eligible (>1600m or not in range)")
+            if not _score_ok(block, min_score):
+                reasons.append(f"Score below minimum {min_score}")
+            if not _h2h_ok(block):
+                reasons.append("Negative H2H with insufficient score compensation")
+
+            if not reasons:
+                valid.append(block)
+                if race_key:
+                    used_races.add(race_key)
+                    print(f"✅ Added selection from {race_info['track']} Race {race_info['race_number']}")
+            else:
+                filtered_reasons.append(f"{horse_name}: {', '.join(reasons)}")
+
+        print(f"📊 STANDARD FORMAT: {len(valid)} valid tips extracted from {len(used_races)} different races")
+        return valid
         
         # CRITICAL: Validate track is real Australian racecourse
         if race_info['track'] and not is_real_australian_track(race_info['track']):
@@ -1099,6 +1448,30 @@ async def call_gemini_with_retry(prompt=None, min_score=None, max_retries=3, bas
                 # Extract and validate qualifiers
                 valid_qualifiers = extract_valid_qualifiers(final_answer, min_score, allowed_horses=allowed_horses)
                 
+                # Check if we have comprehensive race data available
+                if hasattr(extract_valid_qualifiers, '_last_comprehensive_data'):
+                    comprehensive_data = extract_valid_qualifiers._last_comprehensive_data
+                    if comprehensive_data and comprehensive_data.get('tracks'):
+                        print(f"📊 COMPREHENSIVE FORMAT DETECTED: Using full race-by-race analysis")
+                        
+                        # Format the comprehensive analysis for Discord
+                        formatted_output = format_comprehensive_analysis(comprehensive_data)
+                        
+                        # Add summary at the end
+                        summary_parts = []
+                        summary_parts.append(f"✅ **Analysis Complete**")
+                        summary_parts.append(f"📊 **Tracks:** {comprehensive_data['total_tracks']}")
+                        summary_parts.append(f"🏁 **Races:** {comprehensive_data['total_races']}")
+                        summary_parts.append(f"🐎 **Runners Scored:** {comprehensive_data['total_runners']}")
+                        
+                        if valid_qualifiers:
+                            summary_parts.append(f"🎯 **Quality Selections:** {len(valid_qualifiers)}")
+                        
+                        formatted_output += "\n\n" + " | ".join(summary_parts)
+                        
+                        return formatted_output
+                
+                # Fall back to standard format
                 if valid_qualifiers and len(valid_qualifiers) >= 3:
                     print(f"✅ {len(valid_qualifiers)} valid qualifiers found - QUALITY THRESHOLD MET")
                     return "\n\n".join(valid_qualifiers)
@@ -1200,6 +1573,30 @@ async def call_simple_gemini(prompt=None, min_score=None, max_retries=2, allowed
                 # Extract and validate qualifiers
                 valid_qualifiers = extract_valid_qualifiers(final_answer, min_score, allowed_horses=allowed_horses)
                 
+                # Check if we have comprehensive race data available
+                if hasattr(extract_valid_qualifiers, '_last_comprehensive_data'):
+                    comprehensive_data = extract_valid_qualifiers._last_comprehensive_data
+                    if comprehensive_data and comprehensive_data.get('tracks'):
+                        print(f"📊 COMPREHENSIVE FORMAT DETECTED (Simple): Using full race-by-race analysis")
+                        
+                        # Format the comprehensive analysis for Discord
+                        formatted_output = format_comprehensive_analysis(comprehensive_data)
+                        
+                        # Add summary at the end
+                        summary_parts = []
+                        summary_parts.append(f"✅ **Simple Analysis Complete**")
+                        summary_parts.append(f"📊 **Tracks:** {comprehensive_data['total_tracks']}")
+                        summary_parts.append(f"🏁 **Races:** {comprehensive_data['total_races']}")
+                        summary_parts.append(f"🐎 **Runners Scored:** {comprehensive_data['total_runners']}")
+                        
+                        if valid_qualifiers:
+                            summary_parts.append(f"🎯 **Quality Selections:** {len(valid_qualifiers)}")
+                        
+                        formatted_output += "\n\n" + " | ".join(summary_parts)
+                        
+                        return formatted_output
+                
+                # Fall back to standard format
                 if valid_qualifiers:
                     print(f"✅ {len(valid_qualifiers)} valid qualifiers found")
                     return "\n\n".join(valid_qualifiers)
